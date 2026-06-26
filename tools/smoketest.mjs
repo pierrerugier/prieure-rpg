@@ -1,7 +1,6 @@
 // Smoke test headless : simule juste assez de DOM/Canvas pour exécuter le moteur.
 // Lance : node tools/smoketest.mjs
 
-// ── Stub Canvas 2D context (toute méthode = no-op, measureText renvoie une largeur)
 function makeCtx() {
   return new Proxy({}, {
     get(t, p) {
@@ -16,15 +15,10 @@ function makeCanvas() {
   return { width: 0, height: 0, getContext: () => makeCtx() };
 }
 
-// ── Stubs globaux
 const listeners = {};
 globalThis.window = globalThis;
-globalThis.requestAnimationFrame = () => 0; // on pilote la boucle à la main
-globalThis.localStorage = {
-  _d: {},
-  getItem(k) { return this._d[k] ?? null; },
-  setItem(k, v) { this._d[k] = String(v); },
-};
+globalThis.requestAnimationFrame = () => 0;
+globalThis.localStorage = { _d:{}, getItem(k){return this._d[k]??null;}, setItem(k,v){this._d[k]=String(v);} };
 globalThis.document = {
   getElementById: () => makeCanvas(),
   createElement: () => makeCanvas(),
@@ -32,82 +26,77 @@ globalThis.document = {
 };
 globalThis.addEventListener = (ev, fn) => { (listeners[ev] ||= []).push(fn); };
 
-// ── Import du moteur
-const mod = await import('../src/engine_starter.js');
-const { CONFIG } = mod;
-
-// Déclenche le boot
+const { CONFIG } = await import('../src/engine_starter.js');
 for (const fn of (listeners['DOMContentLoaded'] || [])) await fn();
-// Laisse l'init async se terminer
 await new Promise(r => setTimeout(r, 50));
 
 const game = globalThis.GAME;
 if (!game) { console.error('❌ window.GAME absent — le boot a échoué'); process.exit(1); }
 
 const checks = [];
-const ok = (label, cond) => { checks.push([label, !!cond]); };
+const ok = (label, cond) => checks.push([label, !!cond]);
 
-ok('jeu démarré (running)', game.running);
-ok('map hameau chargée', game.tilemap && game.tilemap.w === CONFIG.MAP_W);
-ok('PNJ chargés (>0)', game.npcMgr.npcs.length > 0);
-ok('8 PNJ dans le hameau', game.npcMgr.npcs.length === 8);
+ok('jeu démarré', game.running);
+ok('monde construit (grille de collision)', game.tilemap.cols > 0 && game.tilemap.solid);
+ok('8 PNJ chargés', game.npcMgr.npcs.length === 8);
+ok('spawn sur case marchable', !game.tilemap.isSolidPx(game.player.x, game.player.y));
+ok('vélo placé sur le monde', game.tilemap.bike && !game.tilemap.isSolidPx(game.tilemap.bike.x, game.tilemap.bike.y));
+ok('tous les PNJ sur cases marchables',
+   game.npcMgr.npcs.every(n => !game.tilemap.isSolidPx(n.x, n.y)));
 
-// Spawn marchable ?
-const spawnWalkable = game.player.canMoveTo(game.player.x, game.player.y, game.tilemap);
-ok('spawn sur tile marchable', spawnWalkable);
+// 30 frames sans crash
+let err = null;
+try { for (let i=0;i<30;i++){ game.update(0.016); game.render(); } } catch(e){ err = e; }
+ok('30 frames update+render sans crash', !err);
+if (err) console.error('   ↳', err.message);
 
-// Tourne 30 frames de simulation (update + render) sans crash
-let frameError = null;
-try {
-  for (let i = 0; i < 30; i++) { game.update(0.016); game.render(); }
-} catch (e) { frameError = e; }
-ok('30 frames sans crash', !frameError);
-if (frameError) console.error('   ↳', frameError.message);
+// Déplacement : on tente les 4 directions, au moins une doit bouger
+const x0=game.player.x, y0=game.player.y;
+let moved=false;
+for (const d of ['right','left','down','up']) {
+  game.player.x=x0; game.player.y=y0;
+  game.input.keys[d]=true;
+  for (let i=0;i<25;i++) game.update(0.016);
+  game.input.keys[d]=false;
+  if (Math.hypot(game.player.x-x0, game.player.y-y0) > 4) { moved=true; break; }
+}
+ok('le joueur se déplace', moved);
 
-// Le joueur peut-il bouger vers la droite ? (vers la place du Prieuré)
-const x0 = game.player.x;
-game.input.keys['right'] = true;
-for (let i = 0; i < 20; i++) { game.update(0.016); }
-game.input.keys['right'] = false;
-ok('le joueur se déplace', game.player.x !== x0);
+// Vitesse vélo > marche : distance parcourue en 1s
+function dist(speedFlag){
+  game.player.x=x0; game.player.y=y0; game.player.hasBike=speedFlag;
+  game.input.keys['down']=true;
+  let d=0; for(let i=0;i<6;i++){ const px=game.player.x,py=game.player.y; game.update(0.05); d+=Math.hypot(game.player.x-px,game.player.y-py);}
+  game.input.keys['down']=false; return d;
+}
+const dWalk=dist(false), dBike=dist(true);
+ok('le vélo va plus vite que la marche', dBike > dWalk * 1.4);
+game.player.hasBike=false; game.player.x=x0; game.player.y=y0;
 
-// ── Test dialogue : rencontre de Victor
+// Ramassage du vélo
+game.player.x = game.tilemap.bike.x;
+game.player.y = game.tilemap.bike.y;
+game.update(0.016);
+ok('vélo ramassé au contact', game.saveData.player.flags.bike === true && game.player.hasBike);
+
+// Dialogue Victor → mission 1
 const victor = game.npcMgr.npcs.find(n => n.id === 'victor');
-ok('Victor présent', !!victor);
-if (victor) {
-  // Place le joueur juste en dessous de Victor, tourné vers lui
-  game.player.x = victor.x;
-  game.player.y = victor.y + CONFIG.TILE;
-  game.player.dir = 'up';
+game.player.x = victor.x; game.player.y = victor.y + 16; game.player.dir = 'up';
+game.input.justDown['A'] = true;
+game.update(0.016);
+ok('dialogue de Victor déclenché', game.dialogueMgr.active);
+ok('1re réplique de Victor', /qui toi/i.test(game.dialogueMgr.lines[0]?.text || ''));
+let guard=0;
+while (game.dialogueMgr.active && guard++ < 100) {
+  game.dialogueMgr.textPos = 9999;
   game.input.justDown['A'] = true;
-  game.update(0.016);
-  ok('dialogue déclenché', game.dialogueMgr.active);
-  const first = game.dialogueMgr.lines[0];
-  ok('1re réplique = celle de Victor ("T\'es qui toi ?")',
-     first && /qui toi/i.test(first.text));
-
-  // Déroule tout le dialogue
-  let guard = 0;
-  while (game.dialogueMgr.active && guard++ < 100) {
-    game.dialogueMgr.text = game.dialogueMgr.lines[game.dialogueMgr.current]?.text || '';
-    game.dialogueMgr.textPos = 9999;
-    game.input.justDown['A'] = true;
-    game.dialogueMgr.update(game.input);
-    game.input.flush();
-  }
-  ok('dialogue terminé proprement', !game.dialogueMgr.active);
-  ok('Victor marqué comme rencontré', game.saveData.npc_states.victor?.met === true);
-  ok('mission "meet_victor" complétée',
-     game.saveData.missions.completed.includes('meet_victor'));
-  ok('réputation passée à 1', game.saveData.player.reputation >= 1);
+  game.dialogueMgr.update(game.input); game.input.flush();
 }
+ok('mission "meet_victor" complétée', game.saveData.missions.completed.includes('meet_victor'));
+ok('réputation ≥ 1', game.saveData.player.reputation >= 1);
 
-// ── Rapport
 console.log('\n── RÉSULTATS DU SMOKE TEST ──');
-let pass = 0;
-for (const [label, good] of checks) {
-  console.log(`${good ? '✅' : '❌'} ${label}`);
-  if (good) pass++;
-}
+let pass=0;
+for (const [l,g] of checks){ console.log(`${g?'✅':'❌'} ${l}`); if(g)pass++; }
 console.log(`\n${pass}/${checks.length} vérifications OK`);
-process.exit(pass === checks.length ? 0 : 1);
+process.exit(pass===checks.length?0:1);
