@@ -534,6 +534,41 @@ export const DIALOGUES = {
     ["Les balles dans le rough c'est pour moi. C'est la règle."],
   ],
 
+  // ── SALUTATIONS (2-3 lignes par PNJ, devant leur maison) ──
+  victor_greet: [
+    { speaker: 'victor', text: "Tiens, le nouveau. T'es encore là, toi ?" },
+    { speaker: 'victor', text: "Le hameau, c'est à nous. Mais on partage. Un peu." },
+  ],
+  charles_greet: [
+    { speaker: 'charles', text: "Moi j'ai déjà l'âge adulte, je te signale." },
+    { speaker: 'charles', text: "Tu connais Dragon Ball Z ? Non ? Ça explique beaucoup de choses." },
+  ],
+  margot_greet: [
+    { speaker: 'margot', text: "T'as pas vu Bisou ? Mon chat ! Il est ENCORE parti." },
+    { speaker: 'margot', text: "Bon, tant pis. Tu veux jouer ? Allez, on joue !" },
+  ],
+  antoine_greet: [
+    { speaker: 'antoine', text: "Oh, euh, salut ! Désolé, je squatte chez les Lutreau en ce moment." },
+    { speaker: 'antoine', text: "Tu savais que l'abbaye date du XIIᵉ siècle ? Enfin, ça se voit, mais bon." },
+  ],
+  oscar_greet: [
+    { speaker: 'oscar', text: "Ah salut ! Ce matin j'ai faisé un birdie, c'était trop bien !" },
+    { speaker: 'oscar', text: "Ma mère elle a pas comprendé le golf. Moi si." },
+  ],
+  louis_greet: [
+    { speaker: 'louis', text: "Bonjour. Cette demeure appartient à ma famille depuis trois générations." },
+    { speaker: 'louis', text: "Si l'histoire du Prieuré t'intéresse, sache que je suis intarissable." },
+  ],
+  kupi_greet: [
+    { speaker: 'kupi', text: "Viens chez moi ! Ma mère fait des pizzas pour tout le monde." },
+    { speaker: 'kupi', text: "Ouais, j'ai pas pris de douche depuis trois jours. Et alors ?" },
+  ],
+  paul_greet: [
+    { speaker: 'paul', text: "Ouais." },
+    { speaker: 'paul', text: "..." },
+    { speaker: 'paul', text: "Bien." },
+  ],
+
   // Séquence tutoriel golf avec Oscar
   golf_baptism_sequence: [
     { speaker: 'oscar',  text: "Bon, je t'explique. C'est très simple." },

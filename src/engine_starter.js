@@ -265,24 +265,9 @@ class Game {
   }
 
   talkTo(npc) {
+    // Pour l'instant : pas de mission, juste 2-3 lignes de salutation.
     npc.facePlayer(this.player);
-    const state = this.saveData.npc_states[npc.id] || (this.saveData.npc_states[npc.id] = {});
-    // Première rencontre vs dialogue d'ambiance
-    const key = (npc.firstMeet && !state.met) ? npc.firstMeet : npc.idle;
-    this.dialogueMgr.start(key, npc, this, () => {
-      if (!state.met && npc.firstMeet) {
-        state.met = true;
-        this.onFirstMeet(npc);
-      }
-      this.save();
-    });
-  }
-
-  onFirstMeet(npc) {
-    // Mission "Le Nouveau" : rencontrer Victor
-    if (npc.id === 'victor') {
-      this.missionMgr.completeObjective('meet_victor', 'find_victor');
-    }
+    this.dialogueMgr.start(npc.idle, npc, this);
   }
 
   handleTrigger(trigger) {
@@ -391,7 +376,7 @@ class Game {
     return {
       version: '1.0',
       player: { name: 'Pierre', reputation: 0, inventory: [], flags: {} },
-      missions: { active: ['meet_victor'], completed: [], failed: [] },
+      missions: { active: [], completed: [], failed: [] },
       collectibles: { golf_balls: [], old_photos: [], beer_caps: [], pokemon_cards: [] },
       npc_states: {},
       world: { time: 'morning', day: 1 },

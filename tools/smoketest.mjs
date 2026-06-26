@@ -79,21 +79,21 @@ game.player.y = game.tilemap.bike.y;
 game.update(0.016);
 ok('vélo ramassé au contact', game.saveData.player.flags.bike === true && game.player.hasBike);
 
-// Dialogue Victor → mission 1
-const victor = game.npcMgr.npcs.find(n => n.id === 'victor');
-game.player.x = victor.x; game.player.y = victor.y + 16; game.player.dir = 'up';
-game.input.justDown['A'] = true;
-game.update(0.016);
-ok('dialogue de Victor déclenché', game.dialogueMgr.active);
-ok('1re réplique de Victor', /qui toi/i.test(game.dialogueMgr.lines[0]?.text || ''));
-let guard=0;
-while (game.dialogueMgr.active && guard++ < 100) {
-  game.dialogueMgr.textPos = 9999;
+// Chaque PNJ : on lui parle → dialogue de 2 à 3 lignes (pas de mission)
+function talkLines(npc) {
+  game.dialogueMgr.active = false;
+  game.player.x = npc.x; game.player.y = npc.y + 16; game.player.dir = 'up';
   game.input.justDown['A'] = true;
-  game.dialogueMgr.update(game.input); game.input.flush();
+  game.update(0.016);
+  return game.dialogueMgr.active ? game.dialogueMgr.lines.length : 0;
 }
-ok('mission "meet_victor" complétée', game.saveData.missions.completed.includes('meet_victor'));
-ok('réputation ≥ 1', game.saveData.player.reputation >= 1);
+const victor = game.npcMgr.npcs.find(n => n.id === 'victor');
+talkLines(victor);
+ok('dialogue de Victor déclenché', game.dialogueMgr.active);
+ok('1re réplique de Victor', /nouveau/i.test(game.dialogueMgr.lines[0]?.text || ''));
+const everyHas23 = game.npcMgr.npcs.every(n => { const l = talkLines(n); return l >= 2 && l <= 3; });
+ok('chaque PNJ a 2-3 lignes de dialogue', everyHas23);
+ok('aucune mission active (mises de côté)', game.saveData.missions.active.length === 0);
 
 console.log('\n── RÉSULTATS DU SMOKE TEST ──');
 let pass=0;
