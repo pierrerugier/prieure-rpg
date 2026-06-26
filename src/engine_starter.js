@@ -662,13 +662,8 @@ class Tilemap {
   }
 
   async loadMap(/* mapId */) {
-    const make = (w, h) => {
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h; return c;
-    };
-    const world = buildWorld(make);
+    const world = buildWorld();
     this.world    = world;
-    this.ground   = world.ground;
     this.solid    = world.solid;
     this.cols     = world.cols;
     this.rows     = world.rows;
@@ -679,6 +674,18 @@ class Tilemap {
     this.bike     = world.bike;
     this.npcDefs  = world.npcs;
     this.golf     = world.golf;
+    // Le sol est une image (chargée en navigateur ; ignorée en headless)
+    this.ground = await this.loadGround(world.groundSrc);
+  }
+
+  loadGround(src) {
+    if (typeof Image === 'undefined' || !src) return Promise.resolve(null);
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
   }
 
   isSolidPx(x, y) {

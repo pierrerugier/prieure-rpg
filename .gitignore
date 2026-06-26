@@ -1,3 +1,5 @@
 node_modules/
 .DS_Store
 *.log
+assets/map.png
+assets/map_debug.png
