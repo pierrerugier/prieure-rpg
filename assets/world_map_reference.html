@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Le Prieuré RPG — World Map</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0a14;overflow:hidden;font-family:monospace;}
+#ui{position:fixed;top:0;left:0;right:0;height:30px;background:#080d08;border-bottom:2px solid #1a3a1a;display:flex;align-items:center;justify-content:space-between;padding:0 12px;z-index:100;}
+#ui h1{color:#90d870;font-size:11px;letter-spacing:3px;}
+#ctrl{color:#506850;font-size:10px;}
+#vp{position:fixed;top:30px;left:0;right:0;bottom:0;overflow:hidden;}
+#mainCanvas{position:absolute;top:0;left:0;image-rendering:pixelated;cursor:crosshair;}
+#minimap{position:fixed;bottom:10px;right:10px;border:2px solid #1a3a1a;image-rendering:pixelated;z-index:100;background:#1a2a1a;}
+#hud{position:fixed;bottom:10px;left:10px;background:rgba(4,8,4,0.92);border:1px solid #1a3a1a;color:#90d870;font-size:10px;padding:4px 10px;z-index:100;}
+#zoomlabel{position:fixed;top:36px;right:10px;background:rgba(4,8,4,0.85);border:1px solid #1a3a1a;color:#607860;font-size:10px;padding:3px 8px;z-index:100;}
+</style>
+</head>
+<body>
+<div id="ui"><h1>LE PRIEURÉ — CARTE DU MONDE</h1><div id="ctrl">ZQSD · Shift sprint · Molette zoom · Drag</div></div>
+<div id="vp"><canvas id="mainCanvas"></canvas></div>
+<canvas id="minimap" width="200" height="156"></canvas>
+<div id="hud">Hameau du Prieuré</div>
+<div id="zoomlabel">×2</div>
+<script>
+// ═══════════════════════════════════════════════════════════
+// LE PRIEURÉ RPG — WORLD MAP
+// 2560 × 2000 world px, tile 4px → 640×500 tiles
+// ═══════════════════════════════════════════════════════════
+const WW=2560, WH=2000;
+
+const off = document.createElement('canvas');
+off.width=WW; off.height=WH;
+const g = off.getContext('2d');
+
+// ── PALETTE (hardcoded hex, physical scene, no theme vars) ──
+const P={
+  fd:'#1c3810', fm:'#2a5018', fl:'#3a6824', fe:'#4a7830',
+  tt:'#4e8c38', tb:'#60a848', ts:'#182c0c', th:'#5a7830',
+  fw:'#78c045', fwl:'#88d050', fws:'#6ab038', fwd:'#58942c',
+  gg:'#8ee450', ggl:'#a0f460', gge:'#78c83c',
+  rg:'#52902e', rgd:'#448024',
+  sd:'#e0d278', sdl:'#ece890', sdd:'#c8b860',
+  pr:'#a8d878', prl:'#bcea8c', prd:'#90c060', law:'#98cc68',
+  wa:'#3080b8', wal:'#48a0d8', was:'#68c0f0', wp:'#1460900',
+  ro:'#ccc080', rod:'#aca060', roc:'#bab070', roe:'#8a7840',
+  pt:'#b8a868', ptd:'#a09050',
+  gr:'#b8b090', grd:'#a0987a',
+  pk:'#727272', pkl:'#909090',
+  as:'#c4a260', as2:'#b08840', ad:'#8a6030',
+  ar:'#722810', ar2:'#541c08', arl:'#923820',
+  aw:'#c8dff5', aw2:'#a8c8e8', aarch:'#3c1c04',
+  vw:'#ddd0a5', vw2:'#ccc090', vr:'#886038', vr2:'#6a4420',
+  vrl:'#a87848', vwi:'#b0d0e8', vdo:'#4e2c10', vwo:'#b09060',
+  mw:'#e8dcc0', mw2:'#d8c8a8', mr:'#3a2858', mr2:'#281840',
+  mrl:'#504878', mwi:'#a8c8e8', msh:'#245018',
+  hr:'#b01010', hrl:'#d82020', hw:'#f0c0c0',
+  hg:'#78b848', hh:'#2a5018',
+  tc:'#c07238', tl:'#ffffff',
+  fn:'#c8b870', he:'#2a5018', hel:'#3a6828',
+  fp:'#d0d0d0', fr:'#d82020', fb:'#2848d0',
+  tn:'#c07238',
+};
+
+// ── SEED RNG ──
+let _s=12345;
+function rng(){_s=Math.imul(_s^_s>>>13,_s|7);_s^=_s<<17;return(_s>>>0)/4294967296;}
+function srng(x,y,i=0){_s=(x*73856093^y*19349663^i*1234567)>>>0;rng();return rng();}
+
+// ── DRAW HELPERS ──
+function fr2(x,y,w,h,c,s,sw=1,r=0){
+  if(r){g.beginPath();g.roundRect(x,y,w,h,r);}
+  if(c){g.fillStyle=c;r?g.fill():g.fillRect(x,y,w,h);}
+  if(s){g.strokeStyle=s;g.lineWidth=sw;r?g.stroke():g.strokeRect(x,y,w,h);}
+}
+function el(cx,cy,rx,ry,c,s,sw=1,rot=0){
+  g.beginPath();g.ellipse(cx,cy,rx,ry,rot,0,Math.PI*2);
+  if(c){g.fillStyle=c;g.fill();}if(s){g.strokeStyle=s;g.lineWidth=sw;g.stroke();}
+}
+function ci(cx,cy,r,c,s,sw=1){g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);if(c){g.fillStyle=c;g.fill();}if(s){g.strokeStyle=s;g.lineWidth=sw;g.stroke();}}
+function pl(pts,c,s,sw=1){
+  g.beginPath();g.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++)g.lineTo(pts[i][0],pts[i][1]);
+  g.closePath();if(c){g.fillStyle=c;g.fill();}if(s){g.strokeStyle=s;g.lineWidth=sw;g.stroke();}
+}
+function cv(pts,sw,sc,fc=null){
+  g.beginPath();g.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length-2;i++){
+    const mx=(pts[i][0]+pts[i+1][0])/2,my=(pts[i][1]+pts[i+1][1])/2;
+    g.quadraticCurveTo(pts[i][0],pts[i][1],mx,my);
+  }
+  const n=pts.length;
+  g.quadraticCurveTo(pts[n-2][0],pts[n-2][1],pts[n-1][0],pts[n-1][1]);
+  if(fc){g.fillStyle=fc;g.fill();}if(sc){g.strokeStyle=sc;g.lineWidth=sw;g.stroke();}
+}
+function road(pts,w){
+  g.lineCap='round';g.lineJoin='round';
+  g.beginPath();g.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++)g.lineTo(pts[i][0],pts[i][1]);
+  g.strokeStyle=P.roe;g.lineWidth=w+4;g.stroke();
+  g.strokeStyle=P.ro;g.lineWidth=w;g.stroke();
+  g.strokeStyle=P.roc+'88';g.lineWidth=w*0.4;g.stroke();
+}
+function path2(pts,w){
+  g.lineCap='round';g.lineJoin='round';
+  g.beginPath();g.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++)g.lineTo(pts[i][0],pts[i][1]);
+  g.strokeStyle=P.ptd;g.lineWidth=w+3;g.stroke();
+  g.strokeStyle=P.pt;g.lineWidth=w;g.stroke();
+}
+function fairway(pts,w){
+  g.lineCap='round';g.lineJoin='round';
+  // rough fringe
+  g.beginPath();g.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++)g.lineTo(pts[i][0],pts[i][1]);
+  g.strokeStyle=P.rgd;g.lineWidth=w+26;g.stroke();
+  g.strokeStyle=P.rg;g.lineWidth=w+14;g.stroke();
+  // fairway stripes
+  for(let s2=0;s2<3;s2++){
+    g.beginPath();g.moveTo(pts[0][0],pts[0][1]);
+    for(let i=1;i<pts.length;i++)g.lineTo(pts[i][0],pts[i][1]);
+    g.strokeStyle=s2===0?P.fw:s2===1?P.fwl:P.fws;
+    g.lineWidth=s2===0?w:s2===1?w*0.55:w*0.3;
+    if(s2===2){g.setLineDash([12,10]);}
+    g.stroke();g.setLineDash([]);
+  }
+}
+function green(cx,cy,rx,ry,fc){
+  el(cx,cy,rx+5,ry+5,P.gge,null);
+  el(cx,cy,rx,ry,P.gg,null);
+  el(cx,cy,rx*0.5,ry*0.45,P.ggl,null);
+  ci(cx+rx*0.15,cy,5,P.gge);ci(cx+rx*0.15,cy,3.5,'#111');
+  g.strokeStyle=P.fp;g.lineWidth=2;
+  g.beginPath();g.moveTo(cx+rx*0.15,cy);g.lineTo(cx+rx*0.15,cy-28);g.stroke();
+  pl([[cx+rx*0.15,cy-28],[cx+rx*0.15+14,cy-22],[cx+rx*0.15,cy-16]],fc||P.fr,null);
+}
+function bunker(cx,cy,rx,ry,rot=0){
+  g.save();g.translate(cx,cy);g.rotate(rot);
+  el(0,0,rx+2,ry+2,P.sdd,null);el(0,0,rx,ry,P.sd,null);el(0,0,rx*0.55,ry*0.5,P.sdl,null);
+  g.restore();
+}
+function tree(cx,cy,r){
+  g.fillStyle='#3a2010';g.fillRect(cx-1.5,cy+r*0.3,3,r*0.8);
+  g.fillStyle=P.ts+'40';el(cx+r*0.25,cy+r*0.7,r*0.7,r*0.25,P.ts+'30',null);
+  ci(cx,cy,r,P.tt);ci(cx-r*0.28,cy-r*0.05,r*0.72,P.tb);
+  ci(cx+r*0.2,cy-r*0.15,r*0.58,P.tt);ci(cx,cy-r*0.28,r*0.48,P.tb);
+  ci(cx-r*0.15,cy-r*0.25,r*0.22,'rgba(110,190,60,0.45)');
+}
+
+// ── ZONE LABELS helper ──
+function zlabel(x,y,txt,col,bg='rgba(4,8,4,0.7)'){
+  g.font='bold 16px monospace';g.textAlign='center';
+  const tw=g.measureText(txt).width;
+  fr2(x-tw/2-10,y-16,tw+20,22,bg,null,0,4);
+  g.fillStyle='rgba(0,0,0,0.8)';g.fillText(txt,x+1,y+1);
+  g.fillStyle=col;g.fillText(txt,x,y);
+}
+function alabel(x,y,txt,col,rot=0){
+  g.save();g.translate(x,y);g.rotate(rot);
+  g.font='11px monospace';g.textAlign='center';
+  g.fillStyle='rgba(0,0,0,0.6)';g.fillText(txt,1,1);
+  g.fillStyle=col;g.fillText(txt,0,0);
+  g.restore();
+}
+
+// ════════════════════════════════════════════════════════════
+// DRAW ORDER
+// ════════════════════════════════════════════════════════════
+
+// 1. BACKGROUND — forêt dense
+fr2(0,0,WW,WH,P.fm);
+for(let i=0;i<300;i++){
+  const x=rng()*WW,y=rng()*WH,rx=25+rng()*80,ry=15+rng()*50;
+  el(x,y,rx,ry,rng()<0.5?P.fd:P.fl,null);
+}
+
+// 2. ZONE PRAIRIE HAMEAU (haut-gauche)
+// Calqué fidèlement sur la capture : forme organique
+pl([[20,20],[380,20],[400,80],[380,160],[340,260],[290,380],[220,480],[140,560],
+    [60,580],[20,520],[15,380],[10,200],[20,20]],P.pr,P.fe,2);
+el(180,280,130,160,P.prl,null);
+el(160,180,80,100,P.prl,null);
+
+// Grande clairière centrale (Le Prieuré parking/cul-de-sac)
+el(195,310,95,75,P.gr+'cc',P.grd,1);
+el(195,310,82,62,P.gr,null);
+
+// 3. ROUTES DU HAMEAU
+// Allée des Fougères (verticale principale)
+road([[140,20],[138,60],[142,120],[138,180],[136,240],[132,300],[128,380],[124,450],[120,550],[116,620]],11);
+// Allée des Hameaux (gauche, secondaire)
+path2([[55,100],[58,170],[60,250],[58,340],[55,430],[52,530],[50,610]],8);
+// Allée de la Lisière (diagonale vers golf, se prolonge vers le club-house)
+road([[210,30],[220,80],[232,140],[248,210],[268,290],[292,370],[320,450],[355,530],[395,610],[440,680],[490,740],[545,790]],13);
+// Route interne Le Prieuré (boucle cul-de-sac)
+path2([[195,310],[220,290],[250,285],[270,300],[265,330],[240,350],[210,345],[195,310]],7);
+// Chemins transversaux
+path2([[55,175],[90,172],[120,175],[140,178]],6);
+path2([[55,340],[85,336],[115,338],[138,340]],6);
+path2([[55,470],[90,466],[120,462],[130,460]],6);
+// Connexion lisière → Fougères
+path2([[220,200],[200,205],[175,208],[155,210],[138,210]],6);
+path2([[260,340],[240,345],[215,348],[175,350],[148,352]],6);
+
+// D130 (route principale en bas)
+road([[0,1720],[120,1710],[280,1700],[450,1692],[620,1688],[800,1686],
+      [1000,1688],[1200,1692],[1400,1698],[1600,1708],[1800,1720],[2000,1736],[2200,1750],[2560,1768]],22);
+g.setLineDash([18,12]);g.strokeStyle='#d8c870';g.lineWidth=2;
+g.beginPath();g.moveTo(0,1720);g.bezierCurveTo(640,1688,1280,1686,2560,1768);g.stroke();g.setLineDash([]);
+
+// Route d'accès golf (D130 → club-house)
+road([[860,1690],[850,1650],[840,1590],[835,1530],[832,1460],[830,1390],[828,1320],[825,1250],[820,1180]],16);
+
+// ════════════════════════════════════════════════════════════
+// MAISONS DU HAMEAU — TOUTES LES MAISONS
+// Positions calquées fidèlement sur la capture OSM
+// ════════════════════════════════════════════════════════════
+
+// ── VILLAS PLAIN-PIED (allée Fougères / Hameaux) ──
+// Style: lambris californien, plain-pied, ~120m2
+// Jardin + haie autour de chaque maison
+function drawVilla(cx,cy,w,h,rot,heroLabel,heroColor){
+  g.save();g.translate(cx,cy);g.rotate(rot||0);
+  const hw=w/2,hh=h/2;
+  // Jardin
+  fr2(-hw-14,-hh-12,w+28,h+24,P.hg,P.hh,1,4);
+  // Haie
+  for(let i=0;i<=4;i++){ci(-hw-10+i*(w+20)/4,-hh-10,5,P.he,P.hel,0.5);ci(-hw-10+i*(w+20)/4,hh+10,5,P.he,P.hel,0.5);}
+  for(let i=1;i<3;i++){ci(-hw-10,-hh+i*h/3,4,P.he,P.hel,0.5);ci(hw+10,-hh+i*h/3,4,P.he,P.hel,0.5);}
+  // Ombre
+  g.fillStyle='rgba(0,0,0,0.18)';g.fillRect(-hw+3,hh-2,w,7);
+  // Murs
+  const wc=heroLabel?P.hw:P.vw, rc=heroLabel?P.hr:P.vr, rc2=heroLabel?P.hrl:P.vrl;
+  fr2(-hw,-hh,w,h,wc,P.vwo,1.5);
+  for(let i=1;i<4;i++){g.fillStyle=P.vw2+'66';g.fillRect(-hw,-hh+i*h/4,w,1.5);}
+  // Toit
+  pl([[-hw,-hh],[hw,-hh],[hw+5,-hh-10],[-hw-5,-hh-10]],rc2);
+  pl([[-hw-5,-hh-10],[hw+5,-hh-10],[hw,-hh],[-hw,-hh]],rc);
+  g.fillStyle=rc2;g.fillRect(-hw-5,-hh-11,w+10,2);
+  // Fenêtres
+  fr2(-hw+6,-hh+h*0.22,w*0.26,h*0.32,P.vwi,P.vwo,1);
+  fr2(-hw+w*0.5,-hh+h*0.22,w*0.26,h*0.32,P.vwi,P.vwo,1);
+  g.fillStyle=P.vwo;g.fillRect(-hw+6+w*0.13,-hh+h*0.22,1,h*0.32);g.fillRect(-hw+6,-hh+h*0.22+h*0.16,w*0.26,1);
+  // Porte
+  fr2(hw-w*0.32,-hh+h*0.42,w*0.22,h*0.56,P.vdo,P.vwo,1,2);
+  ci(hw-w*0.14,-hh+h*0.68,1.8,'#c89030');
+  // Allée
+  fr2(-2,hh,4,16,P.gr,P.grd,0.5);
+  g.restore();
+  if(heroLabel){
+    g.font='bold 10px monospace';g.textAlign='center';
+    const cy2=cy-h/2-26;
+    g.fillStyle='rgba(0,0,0,0.75)';g.fillText(heroLabel,cx+1,cy2+1);
+    g.fillStyle=heroColor||'#ff5050';g.fillText(heroLabel,cx,cy2);
+  }
+}
+
+// ── MANOIR À ÉTAGE (allée de la Lisière) ──
+// Style IDF, 2 niveaux, volets verts, toit à deux pans
+function drawManor(cx,cy,w,h,rot,heroLabel,heroColor){
+  g.save();g.translate(cx,cy);g.rotate(rot||0);
+  const hw=w/2,hh=h/2;
+  // Grand jardin
+  fr2(-hw-22,-hh-18,w+44,h+36,P.law,P.hh,1.5,5);
+  for(let i=0;i<=6;i++){ci(-hw-18+i*(w+36)/6,-hh-15,7,P.hel,P.he,0.5);ci(-hw-18+i*(w+36)/6,hh+15,7,P.hel,P.he,0.5);}
+  for(let i=1;i<4;i++){ci(-hw-16,-hh+i*h/4,6,P.hel,P.he,0.5);ci(hw+16,-hh+i*h/4,6,P.hel,P.he,0.5);}
+  g.fillStyle='rgba(0,0,0,0.2)';g.fillRect(-hw+4,hh-3,w,9);
+  const wc=heroLabel?P.hw:P.mw,rc=heroLabel?P.hr:P.mr,rc2=heroLabel?P.hrl:P.mrl;
+  fr2(-hw,-hh,w,h,wc,P.mw2,2);
+  g.fillStyle=P.mw2;g.fillRect(-hw,-hh+h*0.46,w,2.5);
+  // Toit 2 pans
+  pl([[-hw,-hh],[hw,-hh],[hw+6,-hh-14],[0,-hh-24],[-hw-6,-hh-14]],rc);
+  pl([[0,-hh-24],[hw+6,-hh-14],[hw,-hh]],rc2);
+  pl([[0,-hh-24],[-hw-6,-hh-14],[-hw,-hh]],rc);
+  g.fillStyle=rc;g.fillRect(-hw-6,-hh-15,w+12,2);
+  // Cheminée
+  fr2(hw-18,-hh-28,10,20,P.as2,P.ad,1);fr2(hw-20,-hh-30,14,5,P.as,P.ad,1);
+  // Fenêtres RDC (3)
+  for(let i=0;i<3;i++){
+    const fx=-hw+w*0.12+i*w*0.3;
+    fr2(fx,-hh+h*0.54,w*0.18,h*0.34,P.mwi,P.mw2,1);
+    fr2(fx-w*0.07,-hh+h*0.54,w*0.06,h*0.34,P.msh,null);
+    fr2(fx+w*0.18,-hh+h*0.54,w*0.06,h*0.34,P.msh,null);
+  }
+  // Fenêtres étage (4)
+  for(let i=0;i<4;i++){
+    const fx=-hw+w*0.08+i*w*0.23;
+    fr2(fx,-hh+h*0.1,w*0.15,h*0.3,P.mwi,P.mw2,1);
+    fr2(fx-w*0.05,-hh+h*0.1,w*0.04,h*0.3,P.msh,null);
+    fr2(fx+w*0.15,-hh+h*0.1,w*0.04,h*0.3,P.msh,null);
+  }
+  // Porte
+  fr2(-w*0.1,-hh+h*0.54,w*0.2,h*0.45,P.vdo,P.mw2,1.5,3);
+  ci(w*0.04,-hh+h*0.76,2.5,'#c89030');
+  fr2(-3,hh,6,24,P.gr,P.grd,0.5);
+  g.restore();
+  if(heroLabel){
+    g.font='bold 10px monospace';g.textAlign='center';
+    const cy2=cy-h/2-34;
+    g.fillStyle='rgba(0,0,0,0.75)';g.fillText(heroLabel,cx+1,cy2+1);
+    g.fillStyle=heroColor||'#ff5050';g.fillText(heroLabel,cx,cy2);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// PLACEMENT FIDÈLE DE TOUTES LES MAISONS
+// Source: capture OSM + captures satellite
+// Les gris sur la carte représentent chaque bâtiment
+// ════════════════════════════════════════════════════════════
+
+// ── ZONE NORD (autour et au-dessus de Lutreau) ──
+// 8 bâtiments épars dans la forêt nord du hameau
+drawVilla(228,42,  38,26, 0.06,  null);
+drawVilla(252,72,  36,25, -0.04, null);
+drawVilla(185,55,  34,24, 0.02,  null);
+drawVilla(310,48,  38,26, -0.06, null);
+drawVilla(340,78,  36,24, 0.04,  null);
+drawVilla(168,95,  34,24, -0.02, null);
+drawVilla(290,105, 40,27, 0.05,  null);
+drawVilla(355,110, 36,25, -0.04, null);
+
+// ── LUTREAU (zone nord-centre) ──
+drawVilla(230,155, 48,32, 0, 'LUTREAU','#ff4040');
+
+// ── ZONE ALLÉE DES FOUGÈRES (le long de l'allée centrale) ──
+// Villas côté ouest de l'allée
+drawVilla(88, 75,  38,26, 0.04, null);
+drawVilla(80, 135, 40,27, -0.02,null);
+drawVilla(85, 198, 38,26, 0.03, null);
+drawVilla(82, 262, 40,27, -0.04,null);
+drawVilla(86, 328, 38,25, 0.02, null);
+drawVilla(80, 392, 40,26, -0.03,null);
+drawVilla(84, 455, 38,25, 0.04, null);
+drawVilla(80, 520, 40,26, -0.02,null);
+// Villas côté est de l'allée des Fougères
+drawVilla(182,112, 36,25, -0.05,null);
+drawVilla(176,175, 38,26, 0.03, null);
+drawVilla(180,238, 36,25, -0.03,null);
+// JUNGERS (centre hameau)
+drawVilla(186,318, 46,30, 0,    'JUNGERS','#ff4040');
+drawVilla(182,398, 36,25, 0.04, null);
+drawVilla(178,462, 38,26, -0.04,null);
+
+// ── ZONE ALLÉE DES HAMEAUX (gauche, isolée) ──
+drawVilla(32, 105, 36,24, 0.06, null);
+drawVilla(28, 180, 38,25, -0.05,null);
+drawVilla(35, 258, 36,24, 0.04, null);
+drawVilla(30, 338, 38,25, -0.06,null);
+drawVilla(36, 418, 36,24, 0.05, null);
+drawVilla(28, 498, 38,25, -0.04,null);
+drawVilla(34, 568, 36,24, 0.03, null);
+
+// ── ZONE CENTRALE "LE PRIEURÉ" (autour du cul-de-sac) ──
+// Bâtiments groupés visibles sur la capture dans la clairière centrale
+drawVilla(248,265, 38,26, 0.08, null);
+drawVilla(268,295, 36,24, -0.05,null);
+drawVilla(252,328, 40,27, 0.04, null);
+drawVilla(272,356, 36,25, -0.06,null);
+drawVilla(240,382, 38,26, 0.05, null);
+drawVilla(265,410, 36,24, -0.03,null);
+drawVilla(248,438, 40,27, 0.06, null);
+drawVilla(272,462, 36,24, -0.04,null);
+drawVilla(242,490, 38,25, 0.03, null);
+drawVilla(268,516, 36,24, -0.05,null);
+
+// ── KUPI (grande maison isolée, plus bas dans le hameau) ──
+drawManor(200,555, 72,50, 0, 'KUPI','#ff4040');
+
+// ── PAUL + petits frères ──
+drawVilla(88, 548, 44,30, 0,    'PAUL','#ff4040');
+drawVilla(44, 570, 36,24, 0.04, null); // Martin
+drawVilla(64, 598, 36,24, -0.04,null); // Vincent
+
+// ── ALLÉE DE LA LISIÈRE — GRANDES MAISONS (IDF, à étage) ──
+// Ces maisons donnent sur le parcours Est
+// WEBB
+drawManor(348,82,  74,52, -0.08,'WEBB','#ff4040');
+// Voisines (toutes représentées)
+drawManor(368,165, 70,48, -0.04, null);
+drawManor(352,248, 72,50, 0,     null);
+drawManor(362,332, 70,48, 0.04,  null);
+// MARTIN
+drawManor(375,415, 76,54, 0,    'MARTIN','#ff4040');
+drawManor(368,502, 70,48, -0.04, null);
+drawManor(358,578, 68,46, 0.03,  null);
+// Lisière haute (côté nord)
+drawManor(382,40,  68,46, -0.1,  null);
+drawManor(398,118, 70,48, -0.06, null);
+
+// Quelques villas entre lisière et Fougères
+drawVilla(295,148, 38,26, -0.04, null);
+drawVilla(310,225, 36,24, 0.05,  null);
+drawVilla(305,305, 38,25, -0.03, null);
+drawVilla(318,385, 36,24, 0.04,  null);
+drawVilla(308,465, 38,26, -0.05, null);
+
+// ════════════════════════════════════════════════════════════
+// GOLF — PARCOURS OUEST
+// Reproduit fidèlement depuis les photos des plans de parcours
+// Offset: golf commence à x~490, y~20
+// ════════════════════════════════════════════════════════════
+const GX=490, GY=20; // origine golf
+
+// Zone de rough général golf Ouest
+pl([[GX,GY],[GX+780,GY],[GX+820,100],[GX+840,250],[GX+820,460],[GX+790,680],
+    [GX+740,920],[GX+680,1140],[GX+600,1360],[GX+500,1520],[GX+380,1640],
+    [GX+240,1680],[GX+100,1660],[GX+20,1580],[GX+40,1400],[GX+80,1180],
+    [GX+100,960],[GX+80,740],[GX+60,540],[GX+40,340],[GX+20,160],[GX,GY]
+],P.rg,P.fe,3);
+el(GX+400,GY+800,340,700,P.rg,null);
+
+// ─── TROUS OUEST (18 trous, fidèles au plan fourni) ───
+// Trou 1 — nord, long vers l'est
+fairway([[GX+160,GY+28],[GX+240,GY+32],[GX+340,GY+30],[GX+440,GY+35],[GX+540,GY+32],[GX+620,GY+38],[GX+680,GY+45]],34);
+green(GX+710,GY+52,26,20,P.fr);bunker(GX+685,GY+36,14,8,-0.2);bunker(GX+700,GY+68,11,7,0.3);
+
+// Trou 2 — court vers le bas depuis trou 1
+fairway([[GX+680,GY+45],[GX+665,GY+90],[GX+645,GY+145],[GX+620,GY+200],[GX+590,GY+245]],30);
+green(GX+572,GY+265,22,18,P.fb);bunker(GX+555,GY+252,12,7,0.1);bunker(GX+578,GY+280,9,6,-0.15);
+
+// Trou 3 — remontée parallèle
+fairway([[GX+572,GY+265],[GX+555,GY+225],[GX+538,GY+180],[GX+520,GY+135],[GX+508,GY+88],[GX+498,GY+42]],28);
+green(GX+492,GY+25,18,14,P.fr);bunker(GX+477,GY+28,10,6,0);bunker(GX+506,GY+20,8,5,0.2);
+
+// Trou 4 — long diagonal gauche (signature du parcours)
+fairway([[GX+160,GY+28],[GX+140,GY+75],[GX+118,GY+130],[GX+102,GY+195],[GX+92,GY+260],[GX+88,GY+325],[GX+92,GY+388],[GX+102,GY+440]],32);
+green(GX+114,GY+468,24,18,P.fb);bunker(GX+96,GY+458,13,8,0.15);bunker(GX+128,GY+478,10,6,-0.1);
+
+// Trou 5 — court bas gauche
+fairway([[GX+114,GY+468],[GX+108,GY+525],[GX+100,GY+585],[GX+96,GY+640]],26);
+green(GX+92,GY+665,20,16,P.fr);bunker(GX+76,GY+655,11,7,0.2);bunker(GX+105,GY+678,9,5,-0.1);
+
+// Trou 6 — très gauche, long
+fairway([[GX+92,GY+665],[GX+80,GY+720],[GX+68,GY+785],[GX+58,GY+850],[GX+50,GY+920],[GX+48,GY+985]],28);
+green(GX+46,GY+1010,22,17,P.fb);bunker(GX+32,GY+1002,12,7,-0.1);bunker(GX+58,GY+1022,9,5,0.3);
+
+// Trou 7 — long diagonal nord (extrême gauche)
+fairway([[GX+46,GY+1010],[GX+44,GY+960],[GX+42,GY+900],[GX+40,GY+838],[GX+42,GY+778],[GX+48,GY+718],[GX+58,GY+660],[GX+72,GY+608],[GX+90,GY+562]],30);
+green(GX+102,GY+540,20,16,P.fr);bunker(GX+88,GY+532,11,6,0.1);bunker(GX+115,GY+528,8,5,-0.2);
+
+// Trou 8 — horizontal centre
+fairway([[GX+102,GY+540],[GX+155,GY+545],[GX+215,GY+548],[GX+275,GY+542],[GX+330,GY+538],[GX+375,GY+542]],28);
+green(GX+400,GY+548,20,15,P.fb);bunker(GX+382,GY+534,10,6,0.1);bunker(GX+406,GY+560,9,5,-0.1);
+
+// Trou 9 — descente vers club-house
+fairway([[GX+400,GY+548],[GX+418,GY+590],[GX+432,GY+638],[GX+440,GY+690],[GX+442,GY+748],[GX+438,GY+805]],28);
+green(GX+430,GY+830,22,17,P.fr);bunker(GX+415,GY+820,12,7,0.2);bunker(GX+442,GY+844,9,5,-0.15);
+
+// Trou 18 — retour vers club-house
+fairway([[GX+430,GY+830],[GX+450,GY+868],[GX+475,GY+905],[GX+505,GY+935],[GX+540,GY+958],[GX+575,GY+972]],32);
+green(GX+602,GY+978,24,18,P.fb);bunker(GX+584,GY+966,12,7,-0.1);bunker(GX+614,GY+990,10,6,0.2);
+
+// Trou 16 — sud centre
+fairway([[GX+200,GY+900],[GX+210,GY+960],[GX+218,GY+1025],[GX+222,GY+1095],[GX+218,GY+1160],[GX+208,GY+1225]],28);
+green(GX+196,GY+1250,20,15,P.fr);bunker(GX+182,GY+1242,10,6,0.15);
+
+// Trou 17 — sud long
+fairway([[GX+196,GY+1250],[GX+205,GY+1305],[GX+218,GY+1360],[GX+235,GY+1412],[GX+252,GY+1460],[GX+265,GY+1505]],28);
+green(GX+272,GY+1530,20,15,P.fb);bunker(GX+258,GY+1522,10,6,0.1);
+
+// Trous 10-15 (est parcours Ouest)
+fairway([[GX+602,GY+978],[GX+638,GY+995],[GX+678,GY+1008],[GX+718,GY+1015],[GX+758,GY+1015],[GX+795,GY+1008]],30);
+green(GX+818,GY+1000,22,17,P.fr);bunker(GX+800,GY+990,11,6,-0.1);
+
+fairway([[GX+818,GY+1000],[GX+830,GY+1040],[GX+838,GY+1085],[GX+840,GY+1132],[GX+835,GY+1178],[GX+822,GY+1218]],28);
+green(GX+808,GY+1245,20,15,P.fb);bunker(GX+793,GY+1237,10,6,0.2);
+
+fairway([[GX+808,GY+1245],[GX+792,GY+1280],[GX+772,GY+1315],[GX+748,GY+1348],[GX+722,GY+1378],[GX+695,GY+1402]],28);
+green(GX+672,GY+1420,22,17,P.fr);bunker(GX+656,GY+1412,12,7,0.1);bunker(GX+685,GY+1432,9,5,-0.1);
+
+fairway([[GX+672,GY+1420],[GX+645,GY+1438],[GX+615,GY+1452],[GX+582,GY+1460],[GX+548,GY+1462],[GX+514,GY+1458]],28);
+green(GX+490,GY+1450,20,15,P.fb);bunker(GX+476,GY+1442,10,6,0.15);
+
+fairway([[GX+490,GY+1450],[GX+465,GY+1435],[GX+440,GY+1418],[GX+418,GY+1398],[GX+400,GY+1375],[GX+388,GY+1348]],26);
+green(GX+380,GY+1322,20,15,P.fr);bunker(GX+366,GY+1315,10,6,0.1);
+
+fairway([[GX+380,GY+1322],[GX+372,GY+1285],[GX+368,GY+1245],[GX+370,GY+1205],[GX+378,GY+1168],[GX+392,GY+1135]],28);
+green(GX+408,GY+1112,22,17,P.fb);bunker(GX+392,GY+1104,12,7,0.2);bunker(GX+420,GY+1122,9,5,-0.1);
+
+// ════════════════════════════════════════════════════════════
+// GOLF — PARCOURS EST
+// ════════════════════════════════════════════════════════════
+const EX=1420, EY=20;
+
+pl([[EX,EY],[EX+780,EY],[EX+820,120],[EX+840,320],[EX+820,540],[EX+780,760],
+    [EX+720,980],[EX+640,1180],[EX+540,1360],[EX+420,1500],[EX+280,1580],
+    [EX+140,1580],[EX+40,1520],[EX+20,1360],[EX+40,1160],[EX+60,960],
+    [EX+40,760],[EX+20,560],[EX+10,360],[EX+20,180],[EX,EY]
+],P.rg,P.fe,3);
+
+// Trous Est (17 trous visibles sur la carte)
+fairway([[EX+120,EY+30],[EX+200,EY+35],[EX+300,EY+32],[EX+420,EY+30],[EX+540,EY+32],[EX+640,EY+38],[EX+720,EY+48]],32);
+green(EX+748,EY+58,24,18,P.fr);bunker(EX+730,EY+44,12,7,-0.2);bunker(EX+756,EY+72,10,6,0.3);
+
+fairway([[EX+120,EY+30],[EX+108,EY+80],[EX+96,EY+145],[EX+88,EY+215],[EX+84,EY+285],[EX+86,EY+352]],30);
+green(EX+88,EY+378,22,17,P.fb);bunker(EX+72,EY+368,12,7,0.1);bunker(EX+102,EY+390,9,5,-0.15);
+
+fairway([[EX+748,EY+58],[EX+758,EY+110],[EX+762,EY+170],[EX+758,EY+230],[EX+748,EY+285],[EX+732,EY+332]],30);
+green(EX+718,EY+358,22,18,P.fr);bunker(EX+702,EY+348,12,7,0.1);
+
+fairway([[EX+718,EY+358],[EX+698,EY+390],[EX+672,EY+422],[EX+640,EY+452],[EX+605,EY+478],[EX+566,EY+498]],28);
+green(EX+540,EY+510,20,16,P.fb);bunker(EX+524,EY+502,10,6,0.1);bunker(EX+550,EY+522,8,5,-0.2);
+
+fairway([[EX+540,EY+510],[EX+508,EY+522],[EX+474,EY+534],[EX+438,EY+542],[EX+400,EY+548],[EX+362,EY+548]],28);
+green(EX+336,EY+544,20,15,P.fr);bunker(EX+320,EY+536,10,6,0.15);
+
+fairway([[EX+88,EY+378],[EX+96,EY+418],[EX+110,EY+458],[EX+130,EY+496],[EX+155,EY+530],[EX+184,EY+558],[EX+216,EY+578]],28);
+green(EX+242,EY+590,20,15,P.fb);bunker(EX+228,EY+582,10,6,0.2);
+
+fairway([[EX+242,EY+590],[EX+272,EY+598],[EX+305,EY+604],[EX+338,EY+608],[EX+336,EY+544]],26);
+
+fairway([[EX+242,EY+590],[EX+232,EY+638],[EX+222,EY+690],[EX+216,EY+745],[EX+215,EY+800]],28);
+green(EX+214,EY+828,20,15,P.fr);bunker(EX+200,EY+820,10,6,0.1);
+
+fairway([[EX+336,EY+544],[EX+328,EY+590],[EX+316,EY+642],[EX+302,EY+695],[EX+286,EY+748],[EX+268,EY+798]],28);
+green(EX+252,EY+825,20,16,P.fb);
+
+fairway([[EX+252,EY+825],[EX+240,EY+870],[EX+228,EY+920],[EX+220,EY+972],[EX+218,EY+1025]],28);
+green(EX+216,EY+1052,22,17,P.fr);bunker(EX+200,EY+1044,12,7,0.2);
+
+fairway([[EX+214,EY+828],[EX+205,EY+875],[EX+198,EY+928],[EX+196,EY+982],[EX+200,EY+1035]],26);
+
+fairway([[EX+216,EY+1052],[EX+235,EY+1085],[EX+260,EY+1115],[EX+290,EY+1140],[EX+325,EY+1160],[EX+362,EY+1172]],28);
+green(EX+390,EY+1178,20,15,P.fb);bunker(EX+374,EY+1168,10,6,-0.1);
+
+fairway([[EX+390,EY+1178],[EX+420,EY+1185],[EX+454,EY+1190],[EX+490,EY+1192],[EX+526,EY+1190],[EX+560,EY+1183]],28);
+green(EX+584,EY+1174,20,15,P.fr);bunker(EX+568,EY+1165,10,6,0.1);
+
+fairway([[EX+584,EY+1174],[EX+610,EY+1155],[EX+635,EY+1130],[EX+655,EY+1100],[EX+668,EY+1065],[EX+674,EY+1028]],28);
+green(EX+674,EY+1000,20,16,P.fb);bunker(EX+658,EY+992,10,6,0.2);
+
+fairway([[EX+674,EY+1000],[EX+676,EY+958],[EX+672,EY+912],[EX+660,EY+868],[EX+642,EY+826],[EX+618,EY+788]],28);
+green(EX+596,EY+762,22,17,P.fr);bunker(EX+580,EY+754,12,7,-0.1);
+
+fairway([[EX+596,EY+762],[EX+570,EY+742],[EX+540,EY+726],[EX+506,EY+718],[EX+470,EY+718],[EX+435,EY+726]],28);
+green(EX+410,EY+736,20,15,P.fb);bunker(EX+396,EY+728,10,6,0.15);
+
+fairway([[EX+748,EY+58],[EX+760,EY+30],[EX+762,EY+20]],20);
+
+// ════════════════════════════════════════════════════════════
+// MAISON EVENOU (bord parcours Est, Rue des Bonnes Joies)
+// ════════════════════════════════════════════════════════════
+// Route Rue des Bonnes Joies (nord du parcours Est)
+road([[EX+200,EY],[EX+280,EY+25],[EX+400,EY+38],[EX+560,EY+42],[EX+740,EY+36],[EX+900,EY+22]],13);
+// Quelques maisons sur cette rue
+drawManor(EX+240,EY+75, 74,52, 0, 'EVENOU','#ff4040');
+drawVilla(EX+350,EY+62, 40,27, 0.04, null);
+drawVilla(EX+450,EY+58, 38,26, -0.04,null);
+drawManor(EX+570,EY+70, 70,48, 0, null);
+drawVilla(EX+680,EY+62, 38,25, 0.03, null);
+
+// ════════════════════════════════════════════════════════════
+// CLUB-HOUSE — ABBAYE MÉDIÉVALE
+// Jonction parcours Ouest/Est, ~(1150, 1050)
+// ════════════════════════════════════════════════════════════
+const AX=1080, AY=1030;
+
+// Prairie autour
+el(AX+40,AY+20,200,140,P.law,P.hh,2);
+el(AX+40,AY+20,175,115,P.prl,null);
+
+// Allée d'accès depuis D130
+road([[AX+40,AY+195],[AX+38,AY+255],[AX+34,AY+325],[AX+30,AY+400],
+      [AX+24,AY+480],[AX+18,AY+560],[AX+12,AY+640],[AX+5,AY+700]],16);
+
+// Corps abbaye principal (long bâtiment horizontal)
+fr2(AX-80,AY-55,250,88,P.as,P.ad,2.5);
+fr2(AX-82,AY-57,254,16,P.ar,P.ar2,2);
+g.fillStyle=P.arl;for(let i=0;i<24;i++)g.fillRect(AX-80+i*10,AY-57,6,16);
+// Arches (7 arches caractéristiques)
+for(let i=0;i<7;i++){
+  const ax=AX-68+i*28;
+  g.fillStyle=P.aarch;g.fillRect(ax,AY-38,13,38);
+  g.beginPath();g.arc(ax+6.5,AY-38,6.5,Math.PI,0);g.fill();
+  g.fillStyle=P.aw+'cc';g.fillRect(ax+2,AY-36,9,34);
+  g.fillStyle=P.aw2;g.fillRect(ax+3,AY-34,7,24);
+  g.fillStyle=P.aarch;g.fillRect(ax+6,AY-38,1,38);
+}
+// Aile perpendiculaire (chapelle)
+fr2(AX+138,AY-110,55,57,P.as,P.ad,2);
+fr2(AX+138,AY-112,55,14,P.ar2,P.ar2,1);
+g.fillStyle=P.ar;for(let i=0;i<5;i++)g.fillRect(AX+140+i*10,AY-112,8,14);
+fr2(AX+146,AY-96,12,22,P.aw,P.ad,1);fr2(AX+164,AY-96,12,22,P.aw,P.ad,1);
+g.beginPath();g.arc(AX+152,AY-74,6,Math.PI,0);g.fillStyle=P.aw;g.fill();
+g.beginPath();g.arc(AX+170,AY-74,6,Math.PI,0);g.fill();
+// Clocher
+fr2(AX+172,AY-145,28,38,P.as,P.ad,2);
+fr2(AX+170,AY-148,32,14,P.ar2,P.ad,1.5);
+g.fillStyle=P.ar;g.fillRect(AX+184,AY-158,3,15);g.fillRect(AX+178,AY-152,15,3);
+// Cour
+fr2(AX-75,AY+38,100,38,P.gr,P.grd,1);fr2(AX-70,AY+40,90,32,P.gr,null);
+// Terrasse
+fr2(AX-82,AY+80,252,52,P.grd,null);fr2(AX-80,AY+82,248,48,P.gr,P.ad,1);
+for(let i=0;i<7;i++){ci(AX-62+i*36,AY+106,7,P.as2,P.ad,0.5);fr2(AX-66+i*36,AY+99,8,5,'#f0e8d0',null);}
+// Jardin abbaye
+fr2(AX-82,AY-100,46,46,P.law,P.hh,1,3);fr2(AX-79,AY-98,40,42,P.prl,null);
+for(let i=0;i<3;i++)for(let j=0;j<3;j++)fr2(AX-76+i*12,AY-95+j*12,8,8,P.hg,null);
+for(let i=0;i<6;i++){ci(AX-78+i*32,AY+78,8,P.hel,P.he,0.5);ci(AX-78+i*32,AY+78,5,P.he,null);}
+
+// PISCINE
+const PX=AX+180,PY2=AY-140;
+fr2(PX-25,PY2-22,150,110,P.gr,P.grd,1.5,4);
+fr2(PX,PY2,108,72,P.wa,P.wal,2.5,3);
+fr2(PX+2,PY2+2,104,68,P.wal,null,0,3);
+fr2(PX+5,PY2+5,96,22,'rgba(100,200,255,0.3)',null,0,2);
+fr2(PX+5,PY2+5,36,6,'rgba(255,255,255,0.18)',null,0,2);
+g.setLineDash([5,4]);g.strokeStyle=P.wp+'cc';g.lineWidth=1.2;
+for(let i=1;i<4;i++){g.beginPath();g.moveTo(PX+2,PY2+i*16);g.lineTo(PX+106,PY2+i*16);g.stroke();}
+g.setLineDash([]);
+for(let i=0;i<8;i++){fr2(PX+i*13,PY2+74,10,7,'#e8e0c4',P.grd,0.5,1);fr2(PX+i*13+1,PY2+73,8,3,'#d8d0b4',null);}
+g.fillStyle='rgba(0,0,0,0.65)';g.font='bold 10px monospace';g.textAlign='center';g.fillText('PISCINE',PX+54,PY2-10);
+g.fillStyle='#68c8ff';g.fillText('PISCINE',PX+54,PY2-11);
+
+// Putting green
+el(AX+258,AY+42,42,30,P.gge,null);el(AX+258,AY+42,36,24,P.gg,null);el(AX+258,AY+42,20,13,P.ggl,null);
+ci(AX+268,AY+40,5,P.gge);ci(AX+268,AY+40,3.5,'#111');
+g.strokeStyle=P.fp;g.lineWidth=2;g.beginPath();g.moveTo(AX+268,AY+40);g.lineTo(AX+268,AY+10);g.stroke();
+pl([[AX+268,AY+10],[AX+268+16,AY+16],[AX+268,AY+22]],P.fb,null);
+
+// Practice
+fr2(AX-82,AY-210,268,72,P.rgd,P.fe,1.5,2);
+for(let i=0;i<12;i++)fr2(AX-80+i*22,AY-210,(i%2===0?P.fw:P.fwl),null,0);
+for(let i=0;i<12;i++){g.fillStyle=i%2===0?P.fw:P.fwl;g.fillRect(AX-80+i*22,AY-210,22,72);}
+for(let i=0;i<11;i++){fr2(AX-77+i*24,AY-210,16,10,P.rgd,P.fe,0.5,1);}
+g.fillStyle='rgba(0,0,0,0.65)';g.font='bold 10px monospace';g.textAlign='center';g.fillText('PRACTICE',AX+50,AY-220);
+g.fillStyle='#a0ff60';g.fillText('PRACTICE',AX+50,AY-221);
+
+// Parking
+fr2(AX+188,AY+82,158,108,P.pk,P.ad,1.5,2);
+for(let i=0;i<8;i++){g.fillStyle=P.pkl+'55';g.fillRect(AX+188+i*18,AY+84,1,104);}
+for(let i=0;i<4;i++){g.fillStyle=P.pkl+'30';g.fillRect(AX+190,AY+84+i*24,154,1);}
+g.fillStyle='rgba(0,0,0,0.65)';g.font='9px monospace';g.textAlign='center';g.fillText('PARKING',AX+267,AY+95);
+g.fillStyle='#a0a0a0';g.fillText('PARKING',AX+267,AY+94);
+
+// Tennis
+fr2(AX-82,AY+162,100,68,P.tc,P.ad,1.5);
+g.strokeStyle=P.tl;g.lineWidth=2;g.strokeRect(AX-80,AY+164,96,64);
+g.beginPath();g.moveTo(AX-80,AY+196);g.lineTo(AX+16,AY+196);g.stroke();
+g.beginPath();g.moveTo(AX-32,AY+164);g.lineTo(AX-32,AY+228);g.stroke();
+g.lineWidth=2.5;g.beginPath();g.moveTo(AX-80,AY+196);g.lineTo(AX+16,AY+196);g.stroke();
+g.fillStyle='rgba(0,0,0,0.65)';g.font='9px monospace';g.textAlign='center';g.fillText('TENNIS',AX-32,AY+158);
+g.fillStyle='#c07840';g.fillText('TENNIS',AX-32,AY+157);
+
+// Labels club-house
+zlabel(AX+54,AY-65,'ABBAYE DU PRIEURÉ','#ffe070');
+zlabel(AX+54,AY-48,'CLUB-HOUSE','#ffd040');
+
+// ════════════════════════════════════════════════════════════
+// ARBRES — FORÊT ORGANIQUE
+// ════════════════════════════════════════════════════════════
+// Arbres sur les bords + entre les trous
+const treeData=[];
+// Bordure hameau (forêt qui cerne la prairie)
+for(let a=0;a<Math.PI*2;a+=0.18){
+  const r=220+srng(Math.cos(a)*100,Math.sin(a)*100)()*40;
+  treeData.push([200+Math.cos(a)*r,310+Math.sin(a)*r*0.7,7+rng()*5]);
+}
+// Bandes de forêt entre les trous (Ouest)
+for(let y=50;y<1700;y+=40){
+  for(let x=GX+10;x<GX+850;x+=45){
+    const v=srng(x,y)();
+    if(v<0.22) treeData.push([x,GY+y,5+rng()*7]);
+  }
+}
+// Forêt Est
+for(let y=50;y<1700;y+=40){
+  for(let x=EX+10;x<EX+850;x+=45){
+    const v=srng(x+5000,y)();
+    if(v<0.22) treeData.push([x,EY+y,5+rng()*7]);
+  }
+}
+// Forêt entre Ouest et Est
+for(let y=0;y<1800;y+=35){
+  for(let x=GX+840;x<EX;x+=38){
+    const v=srng(x+2000,y)();
+    if(v<0.35) treeData.push([x,y,5+rng()*8]);
+  }
+}
+// Bord gauche
+for(let y=0;y<1800;y+=32){
+  for(let x=0;x<GX-10;x+=35){
+    if(x>420&&x<480) continue;
+    const v=srng(x+100,y+100)();
+    if(v<0.28) treeData.push([x,y,5+rng()*7]);
+  }
+}
+// Bord droit
+for(let y=0;y<1800;y+=32){
+  for(let x=EX+840;x<WW;x+=35){
+    const v=srng(x+9000,y)();
+    if(v<0.32) treeData.push([x,y,5+rng()*7]);
+  }
+}
+// Bas de carte
+for(let y=1720;y<WH;y+=28){
+  for(let x=0;x<WW;x+=30){
+    const v=srng(x,y+5000)();
+    if(v<0.4) treeData.push([x,y,4+rng()*6]);
+  }
+}
+treeData.forEach(([x,y,r])=>tree(x,y,r));
+
+// ════════════════════════════════════════════════════════════
+// ZONE LABELS
+// ════════════════════════════════════════════════════════════
+zlabel(200,600,'HAMEAU DU PRIEURÉ','#ffff90');
+zlabel(GX+400,GY+15,'PARCOURS OUEST','#90ff90');
+zlabel(EX+400,EY+15,'PARCOURS EST','#90ff90');
+alabel(136,320,'ALLÉE DES FOUGÈRES','#d0c870cc',-Math.PI/2);
+alabel(52,360,'ALLÉE DES HAMEAUX','#c0b860bb',-Math.PI/2);
+alabel(288,260,'ALLÉE DE LA LISIÈRE','#d0c870cc',-0.4);
+// D130
+fr2(160,1724,80,22,'#d4a820',null,0,5);
+g.fillStyle='#1a1a1a';g.font='bold 13px monospace';g.textAlign='center';g.fillText('D130',200,1740);
+
+// Portail entrée golf
+fr2(865,1694,18,28,P.as,P.ad,1.5,3);fr2(892,1694,18,28,P.as,P.ad,1.5,3);
+g.strokeStyle=P.ad;g.lineWidth=1.5;g.beginPath();g.moveTo(883,1694);g.lineTo(892,1697);g.stroke();
+
+// ════════════════════════════════════════════════════════════
+// PIXEL-ART PASS
+// Sample offscreen → basse résolution → upscale pixelisé
+// ════════════════════════════════════════════════════════════
+const TILE=4;
+const PW2=Math.floor(WW/TILE), PH2=Math.floor(WH/TILE);
+const tmp=document.createElement('canvas');
+tmp.width=PW2;tmp.height=PH2;
+const tc2=tmp.getContext('2d');
+tc2.imageSmoothingEnabled=false;
+tc2.drawImage(off,0,0,PW2,PH2);
+
+const pix=document.createElement('canvas');
+pix.width=WW;pix.height=WH;
+const pc2=pix.getContext('2d');
+pc2.imageSmoothingEnabled=false;
+pc2.drawImage(tmp,0,0,PW2,PH2,0,0,WW,WH);
+
+// ════════════════════════════════════════════════════════════
+// DISPLAY + NAVIGATION
+// ════════════════════════════════════════════════════════════
+const VW=window.innerWidth, VH=window.innerHeight-30;
+const mc=document.getElementById('mainCanvas');
+mc.width=WW;mc.height=WH;
+const mctx=mc.getContext('2d');
+mctx.imageSmoothingEnabled=false;
+mctx.drawImage(pix,0,0);
+
+let zoom=2, sx=0, sy=0;
+function clamp(){sx=Math.max(0,Math.min(sx,WW*zoom-VW));sy=Math.max(0,Math.min(sy,WH*zoom-VH));}
+function applyView(){mc.style.width=(WW*zoom)+'px';mc.style.height=(WH*zoom)+'px';mc.style.left=-sx+'px';mc.style.top=-sy+'px';document.getElementById('zoomlabel').textContent='×'+zoom.toFixed(1);drawMM();updateHUD();}
+
+const keys={};
+document.addEventListener('keydown',e=>{keys[e.key]=true;['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)&&e.preventDefault();});
+document.addEventListener('keyup',e=>{keys[e.key]=false;});
+let spd=8;
+(function loop(){
+  let dx=0,dy=0;
+  spd=keys['Shift']?20:8;
+  if(keys['ArrowLeft']||keys['q']||keys['Q'])dx=-spd;
+  if(keys['ArrowRight']||keys['d']||keys['D'])dx=spd;
+  if(keys['ArrowUp']||keys['z']||keys['Z'])dy=-spd;
+  if(keys['ArrowDown']||keys['s']||keys['S'])dy=spd;
+  if(dx||dy){sx+=dx;sy+=dy;clamp();applyView();}
+  requestAnimationFrame(loop);
+})();
+
+document.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const oz=zoom;zoom=Math.max(0.5,Math.min(8,zoom+Math.sign(-e.deltaY)*0.3));
+  const vp2=document.getElementById('vp').getBoundingClientRect();
+  const mx=e.clientX-vp2.left,my=e.clientY-vp2.top;
+  sx=(sx+mx)/oz*zoom-mx;sy=(sy+my)/oz*zoom-my;
+  clamp();applyView();
+},{passive:false});
+
+let drag=false,dsx=0,dsy=0,dcx=0,dcy=0;
+document.addEventListener('mousedown',e=>{drag=true;dsx=e.clientX;dsy=e.clientY;dcx=sx;dcy=sy;});
+document.addEventListener('mousemove',e=>{if(!drag)return;sx=dcx-(e.clientX-dsx);sy=dcy-(e.clientY-dsy);clamp();applyView();});
+document.addEventListener('mouseup',()=>drag=false);
+
+const mm=document.getElementById('minimap');
+const mmc=mm.getContext('2d');
+function drawMM(){
+  mmc.imageSmoothingEnabled=false;
+  mmc.drawImage(pix,0,0,mm.width,mm.height);
+  const scx=mm.width/WW,scy=mm.height/WH;
+  const vx=(sx/zoom)*scx,vy=(sy/zoom)*scy,vw=(VW/zoom)*scx,vh=(VH/zoom)*scy;
+  mmc.strokeStyle='rgba(255,255,255,0.9)';mmc.lineWidth=1.5;mmc.strokeRect(vx,vy,vw,vh);
+  mmc.strokeStyle='rgba(255,255,0,0.5)';mmc.lineWidth=0.5;mmc.strokeRect(vx,vy,vw,vh);
+}
+drawMM();
+
+function updateHUD(){
+  const wx=sx/zoom+VW/(2*zoom),wy=sy/zoom+VH/(2*zoom);
+  let z='Golf du Prieuré';
+  if(wx<430&&wy<650)z='Hameau du Prieuré';
+  else if(wx>AX-120&&wx<AX+350&&wy>AY-250&&wy<AY+250)z='Club-House — Abbaye du Prieuré';
+  else if(wx>AX+150&&wy<AY-50)z='Piscine & Practice';
+  else if(wx>EX+180&&wy<EY+130)z='Rue des Bonnes Joies — Evenou';
+  else if(wx>EX)z='Parcours Est';
+  else if(wx>GX)z='Parcours Ouest';
+  else if(wy>1680)z='Route D130';
+  document.getElementById('hud').textContent=z;
+}
+applyView();
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le Prieuré RPG</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a14;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: monospace;
+  }
+  #title {
+    color: #a8e870;
+    font-size: 14px;
+    letter-spacing: 4px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  #game {
+    border: 3px solid #1a3a1a;
+    image-rendering: pixelated;
+    /* GBA: 240×160 × 3 = 720×480 */
+    width: 720px;
+    height: 480px;
+  }
+  #controls {
+    color: #4a6a4a;
+    font-size: 10px;
+    margin-top: 10px;
+    text-align: center;
+    line-height: 1.8;
+  }
+  #controls span { color: #6a9a6a; }
+</style>
+</head>
+<body>
+<div id="title">Le Prieuré RPG</div>
+<canvas id="game" width="720" height="480"></canvas>
+<div id="controls">
+  <span>ZQSD</span> / Flèches : Déplacer &nbsp;|&nbsp;
+  <span>Entrée / X</span> : Parler / Confirmer &nbsp;|&nbsp;
+  <span>Echap</span> : Menu
+</div>
+<script type="module" src="src/engine_starter.js"></script>
+</body>
+</html>
