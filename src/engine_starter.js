@@ -662,7 +662,8 @@ class Tilemap {
   }
 
   async loadMap(/* mapId */) {
-    const world = buildWorld();
+    const make = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+    const world = buildWorld(make);
     this.world    = world;
     this.solid    = world.solid;
     this.cols     = world.cols;
@@ -674,8 +675,8 @@ class Tilemap {
     this.bike     = world.bike;
     this.npcDefs  = world.npcs;
     this.golf     = world.golf;
-    // Le sol est une image (chargée en navigateur ; ignorée en headless)
-    this.ground = await this.loadGround(world.groundSrc);
+    // Sol : canvas peint (clean) ou image optionnelle
+    this.ground = world.ground || (world.groundSrc ? await this.loadGround(world.groundSrc) : null);
   }
 
   loadGround(src) {

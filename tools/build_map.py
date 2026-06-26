@@ -6,9 +6,8 @@ import json, math, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 raw = json.load(open(os.path.join(ROOT, 'tools', 'osm_raw.json')))
 
-# ── Recadrage SERRÉ sur le hameau Le Prieuré (cluster dense de ~99 maisons) ──
-# Centre du cluster : 49.0572, 1.7991. ~660 m de côté -> échelle jouable.
-CORE = dict(latmin=49.0542, latmax=49.0602, lonmin=1.7947, lonmax=1.8035)
+# ── Emprise = golf + hameau (topologie complète, mesurée) ──
+CORE = dict(latmin=49.0438, latmax=49.0600, lonmin=1.7779, lonmax=1.8032)
 def in_core(p):
     return CORE['latmin'] <= p['lat'] <= CORE['latmax'] and CORE['lonmin'] <= p['lon'] <= CORE['lonmax']
 els = [e for e in raw['elements']
