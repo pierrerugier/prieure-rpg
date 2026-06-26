@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 export const TILE = 16;       // taille logique d'une case (collision)
-const PIXELATE   = 2;         // facteur de pixellisation (crunch GBA)
+const PIXELATE   = 1;         // GBA strict 1:1 (sol aussi net que les persos)
 
 // ── PALETTE (style FireRed / Emerald) ──────────────────────────
 const P = {
@@ -100,25 +100,85 @@ const DECO_TREES = [
   [900,360,15],[1050,720,16],[250,520,16],[660,1000,17],
 ];
 
+// Looks fidèles des persos (cf. brief de Pierre)
+const LOOKS = {
+  victor:  { hair:'#241608', skin:'#c39a5e', shirt:'#c83030', pants:'#39414f', shoes:'#2a2a30' },                 // brun, mat
+  charles: { hair:'#3a2410', skin:'#e8c49a', shirt:'#d07820', pants:'#39414f', shoes:'#2a2a30', hat:'#2c5aa0' },  // casquette
+  margot:  { hair:'#e8c84a', skin:'#f4d8b8', shirt:'#e060a0', pants:'#8a4a8a', shoes:'#6a3a6a', hairStyle:'curly' }, // blonde bouclée
+  antoine: { hair:'#3a2a18', skin:'#eed0a8', shirt:'#5090c0', pants:'#39414f', shoes:'#2a2a30', glasses:true },   // lunettes
+  oscar:   { hair:'#e8d24a', skin:'#f6dcc0', shirt:'#e8c83a', pants:'#5a6a3a', shoes:'#3a3a30', build:'chubby' }, // blond, enrobé, pâle
+  louis:   { hair:'#3a2410', skin:'#f2dcc4', shirt:'#7050a0', pants:'#39414f', shoes:'#2a2a30' },                 // brun, peau blanche
+  kupi:    { hair:'#4a3018', skin:'#dcb488', shirt:'#806040', pants:'#39414f', shoes:'#2a2a30' },
+  paul:    { hair:'#1a1a1a', skin:'#e8c49a', shirt:'#404858', pants:'#2a2a30', shoes:'#1a1a1a' },
+};
+
 // PNJ : chacun devant SA maison (calé ensuite sur la case marchable la plus proche)
 const NPC_ANCHORS = [
-  // Les Lutreau (+ Antoine qui squatte chez eux) — devant la villa Lutreau
-  { id:'victor',  ...front('lutreau', -34), color:'#c83030', idle:'victor_greet'  },
-  { id:'charles', ...front('lutreau',  26), color:'#d08020', idle:'charles_greet' },
-  { id:'margot',  ...front('lutreau',  -6, 20), color:'#e060a0', idle:'margot_greet', wander:true },
-  { id:'antoine', ...front('lutreau',  58), color:'#5090c0', idle:'antoine_greet' },
-  // Oscar devant le manoir Webb (allée de la Lisière)
-  { id:'oscar',   ...front('webb',   -8), color:'#e8d040', idle:'oscar_greet'   },
-  // Louis devant le manoir Martin
-  { id:'louis',   ...front('martin',-12), color:'#7050a0', idle:'louis_greet'   },
-  // Kupi devant son grand manoir isolé
-  { id:'kupi',    ...front('kupi',   -8), color:'#806040', idle:'kupi_greet'    },
-  // Paul devant sa maison (allée des Hameaux)
-  { id:'paul',    ...front('paul',    0), color:'#404858', idle:'paul_greet'    },
+  { id:'victor',  ...front('lutreau', -34), look:LOOKS.victor,  idle:'victor_greet'  },
+  { id:'charles', ...front('lutreau',  26), look:LOOKS.charles, idle:'charles_greet' },
+  { id:'margot',  ...front('lutreau',  -6, 20), look:LOOKS.margot, idle:'margot_greet', wander:true },
+  { id:'antoine', ...front('lutreau',  58), look:LOOKS.antoine, idle:'antoine_greet' },
+  { id:'oscar',   ...front('webb',   -8), look:LOOKS.oscar,  idle:'oscar_greet'   },
+  { id:'louis',   ...front('martin',-12), look:LOOKS.louis,  idle:'louis_greet'   },
+  { id:'kupi',    ...front('kupi',   -8), look:LOOKS.kupi,   idle:'kupi_greet'    },
+  { id:'paul',    ...front('paul',    0), look:LOOKS.paul,   idle:'paul_greet'    },
+];
+
+// Chiens errants — « Comment tu vas, toi ? » → « Ouaf ouaf ! »
+const DOGS = [
+  { id:'dog1', kind:'dog', name:'le chien', x:560, y:640, color:'#8a6038', wander:true, range:34 },
+  { id:'dog2', kind:'dog', name:'le chien', x:320, y:880, color:'#2a2a2a', wander:true, range:34 },
+  { id:'dog3', kind:'dog', name:'le chien', x:900, y:720, color:'#e6ddcb', wander:true, range:34 },
+];
+
+// Passants (petits vieux) qui se baladent dans les allées
+const PASSANT_LOOK_A = { hair:'#bcbcbc', skin:'#e6c8a2', shirt:'#7a8a6a', pants:'#56564e', shoes:'#3a3a30' };
+const PASSANT_LOOK_B = { hair:'#cfcfcf', skin:'#dcbc94', shirt:'#9a7a6a', pants:'#4a4a4a', shoes:'#2a2a2a' };
+const PASSANTS = [
+  { id:'passant1', kind:'passant', name:'Mme Lévêque', x:560, y:500, look:PASSANT_LOOK_A, wander:true, range:48,
+    idle:[ {speaker:'Mme Lévêque', text:"Ah, les jeunes ! Profitez-en, c'est le plus bel été."},
+           {speaker:'Mme Lévêque', text:"Vous n'auriez pas vu mon chien ? Il file toujours vers le golf."} ] },
+  { id:'passant2', kind:'passant', name:'M. Grémont', x:255, y:700, look:PASSANT_LOOK_B, wander:true, range:48,
+    idle:[ {speaker:'M. Grémont', text:"Belle journée pour marcher, n'est-ce pas ?"},
+           {speaker:'M. Grémont', text:"De mon temps, on rentrait à la nuit tombée. Et encore."} ] },
+  { id:'passant3', kind:'passant', name:'Le facteur', x:700, y:560, look:PASSANT_LOOK_A, wander:true, range:40,
+    idle:[ {speaker:'Le facteur', text:"Du courrier pour les Lutreau, encore des magazines de Charles."},
+           {speaker:'Le facteur', text:"Bonne journée, petit !"} ] },
 ];
 
 const SPAWN_ANCHOR = front('jungers', 0, -6);  // place du Prieuré, devant chez Jungers
 const BIKE_ANCHOR  = { x:560, y:760 };          // posé au bord de l'allée des Fougères
+
+// Lampadaires « à l'anglaise » le long des allées
+function lampsAlong(road, spacing, side) {
+  const out = [], off = road.w / 2 + 10;
+  for (let i = 0; i < road.pts.length - 1; i++) {
+    const [ax, ay] = road.pts[i], [bx, by] = road.pts[i + 1];
+    const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len * side, ny = dx / len * side;
+    const n = Math.floor(len / spacing);
+    for (let k = 1; k <= n; k++) {
+      const t = (k * spacing) / len;
+      out.push({ x: ax + dx * t + nx * off, y: ay + dy * t + ny * off });
+    }
+  }
+  return out;
+}
+const LAMPS = [
+  ...lampsAlong(ROADS[1], 80, 1),    // Allée des Hameaux
+  ...lampsAlong(ROADS[0], 95, -1),   // Allée des Fougères
+];
+
+// Voitures garées devant une maison sur deux (sur la terrasse / l'allée)
+const CARS = (() => {
+  const cols = ['#b83030', '#2c50a0', '#d8d8d8', '#3a3a3a', '#2e8050', '#c08030'];
+  const out = [];
+  HOUSES.forEach((h, i) => {
+    if (i % 2 !== 0) return;
+    out.push({ x: h.x + h.w * 0.6, y: h.y + h.h + 16, col: cols[i % cols.length] });
+  });
+  return out;
+})();
 
 // ── TESTS GÉOMÉTRIQUES ─────────────────────────────────────────
 function inPoly(pts, x, y) {
@@ -150,7 +210,7 @@ function inEllipse(e, x, y) {
   return dx*dx + dy*dy <= 1;
 }
 function inHouseBlock(h, x, y) {
-  const m = 12; // marge jardin/haie
+  const m = 4; // on ne bloque que le bâtiment (la terrasse/jardin restent praticables)
   return x >= h.x - m && x <= h.x + h.w + m &&
          y >= h.y - m && y <= h.y + h.h + m;
 }
@@ -161,6 +221,8 @@ function walkableAt(x, y) {
   for (const h of HOUSES)       if (inHouseBlock(h, x, y)) return false;
   if (inEllipse(POND, x, y))    return false;
   for (const t of DECO_TREES)   if (Math.hypot(x - t[0], y - t[1]) < t[2] * 0.8) return false;
+  for (const l of LAMPS)        if (Math.hypot(x - l.x, y - l.y) < 5) return false;
+  for (const c of CARS)         if (x >= c.x - 2 && x <= c.x + 16 && y >= c.y - 2 && y <= c.y + 28) return false;
   // Surfaces marchables
   if (inPoly(PRAIRIE, x, y))    return true;
   if (inEllipse(GRAVEL, x, y))  return true;
@@ -239,58 +301,83 @@ function drawTree(cx,cy,r){
   ci(cx,cy,r,P.tt); ci(cx-r*0.28,cy-r*0.06,r*0.72,P.tb);
   ci(cx+r*0.2,cy-r*0.16,r*0.56,P.tt); ci(cx-r*0.12,cy-r*0.24,r*0.3,'rgba(120,200,80,0.5)');
 }
-// Villa plain-pied : grand toit + petit mur (look Pokémon)
-function drawVilla(h){
+// Haie de buissons sur le périmètre d'un rectangle de jardin
+function drawHedgeRing(x0, y0, x1, y1){
+  const step = 11;
+  for (let x = x0; x <= x1; x += step){ ci(x, y0, 5, P.he, P.hel, 0.5); ci(x, y1, 5, P.he, P.hel, 0.5); }
+  for (let y = y0; y <= y1; y += step){ ci(x0, y, 5, P.he, P.hel, 0.5); ci(x1, y, 5, P.he, P.hel, 0.5); }
+}
+
+// Maison : jardin (2-3× la maison) + terrasse dalles grises + baies vitrées,
+// toit PLAT (villas forêt) ou PENTU (manoirs de lisière). Orientée plein sud.
+function drawHouse(h, pitched){
   const cx=h.x+h.w/2, cy=h.y+h.h/2, w=h.w, hh=h.h, hw=w/2, hht=hh/2;
-  g.save();g.translate(cx,cy);
-  // Jardin + haie
-  fr(-hw-14,-hht-8,w+28,hh+22,P.hg,P.hh,1.5,6);
-  for(let i=0;i<=5;i++){ci(-hw-10+i*(w+20)/5,-hht-6,5,P.he,P.hel,0.5);ci(-hw-10+i*(w+20)/5,hht+12,5,P.he,P.hel,0.5);}
-  g.fillStyle='rgba(0,0,0,0.18)';g.fillRect(-hw+3,hht-1,w,6);
-  const wc=h.label?'#f0d8c0':P.vw, rc=h.label?'#b85038':P.vr, rcl=h.label?'#d87858':P.vrl, rcd=P.vr2;
-  const roofH=Math.round(hh*0.54), eave=6, wallY=-hht+roofH, wh=hh-roofH;
-  // Mur (partie basse) + fenêtres + porte
-  fr(-hw,wallY,w,wh,wc,P.vwo,1.5);
-  const fwd=Math.max(7,Math.round(w*0.2));
-  fr(-hw+4,wallY+3,fwd,Math.round(wh*0.45),P.vwi,P.vwo,1);
-  fr(hw-4-fwd,wallY+3,fwd,Math.round(wh*0.45),P.vwi,P.vwo,1);
-  const dw=Math.max(8,Math.round(w*0.22)), dh=Math.round(wh*0.6);
-  fr(-dw/2,hht-dh,dw,dh,P.vdo,P.vwo,1.5,2);
-  ci(dw/2-2,hht-dh*0.45,1.6,'#c89030');
-  // Toit (trapèze à débord)
-  poly([[-hw-eave,wallY],[hw+eave,wallY],[hw*0.42,-hht],[-hw*0.42,-hht]],rc);
-  g.fillStyle=rcd;g.fillRect(-hw-eave,wallY-2,w+2*eave,2);          // avant-toit
-  g.fillStyle=rcl;g.fillRect(Math.round(-hw*0.42),-hht,Math.round(w*0.42),2); // faîte
-  g.strokeStyle=rcl;g.lineWidth=1;                                  // tuiles
-  const my=wallY-roofH*0.5, mhw=hw*0.72+eave*0.5;
-  g.beginPath();g.moveTo(-mhw,my);g.lineTo(mhw,my);g.stroke();
+  g.save(); g.translate(cx, cy);
+  // 1. Jardin (pelouse), plus large vers l'avant (sud)
+  const gL=-w*0.9, gR=w*0.9, gT=-hht-h*0.45, gB=hht+h*1.25;
+  fr(gL, gT, gR-gL, gB-gT, P.hg, null, 0, 10);
+  // 2. Terrasse en dalles grises devant la maison
+  const tY=hht+1, tH=h*0.55;
+  fr(-hw-3, tY, w+6, tH, '#bab7ae', null, 0, 2);
+  g.strokeStyle='#9a978f'; g.lineWidth=1;
+  for(let gx=-hw; gx<=hw; gx+=8){ g.beginPath(); g.moveTo(gx,tY); g.lineTo(gx,tY+tH); g.stroke(); }
+  for(let gy=tY+6; gy<tY+tH; gy+=7){ g.beginPath(); g.moveTo(-hw-3,gy); g.lineTo(hw+3,gy); g.stroke(); }
+  // 3. Ombre de la maison
+  g.fillStyle='rgba(0,0,0,0.2)'; g.fillRect(-hw+3, hht-1, w, 5);
+  // 4. Couleurs
+  const wc = h.label ? (pitched?'#f0e0d0':'#f0d8c0') : (pitched?P.mw:P.vw);
+  const rc = pitched ? (h.label?'#3a2858':P.mr) : '#6f675c';     // pentu sombre / toit plat
+  const rcl= pitched ? (h.label?'#504878':P.mrl) : '#8a8276';
+  const roofH=Math.round(hh*(pitched?0.55:0.34)), facY=-hht+roofH, facH=hh-roofH, eave=6;
+  // 5. Façade + grandes baies vitrées + porte
+  fr(-hw, facY, w, facH, wc, P.vwo, 1.5);
+  const bayY=facY+Math.max(2,facH*0.16), bayH=facH*0.5, bayW=w*0.32;
+  fr(-hw+3, bayY, bayW, bayH, '#a8d0e8', '#7a98b0', 1);
+  fr(hw-3-bayW, bayY, bayW, bayH, '#a8d0e8', '#7a98b0', 1);
+  g.fillStyle='rgba(255,255,255,0.28)'; g.fillRect(-hw+4, bayY+1, bayW*0.5, 2); g.fillRect(hw-2-bayW, bayY+1, bayW*0.5, 2);
+  const dw=Math.max(7,w*0.16), dh=facH*0.6;
+  fr(-dw/2, hht-dh, dw, dh, P.vdo, P.vwo, 1.5, 1);
+  ci(dw/2-2, hht-dh*0.5, 1.4, '#c89030');
+  // 6. Toit
+  if (pitched){
+    poly([[-hw-eave,facY],[hw+eave,facY],[hw*0.45,-hht],[-hw*0.45,-hht]], rc);
+    g.fillStyle=rcl; g.fillRect(Math.round(-hw*0.45),-hht,Math.round(w*0.45),2);
+    g.fillStyle='rgba(0,0,0,0.25)'; g.fillRect(-hw-eave,facY-2,w+2*eave,2);
+    fr(hw*0.5,-hht-10,7,14,P.sdd,'#6a4420',1);                    // cheminée
+  } else {
+    fr(-hw-2,-hht,w+4,roofH+2,rc,null,0);                         // toit plat (dalle)
+    fr(-hw-2,-hht,w+4,3,rcl);                                     // acrotère clair
+    g.strokeStyle='#5a5248'; g.lineWidth=1;
+    for(let gy=-hht+5; gy<facY-1; gy+=5){ g.beginPath(); g.moveTo(-hw,gy); g.lineTo(hw,gy); g.stroke(); }
+    g.fillStyle='#5a5248'; g.fillRect(-hw-2,facY-2,w+4,2);
+  }
+  // 7. Haie de périmètre + massif de fleurs (parfois)
+  drawHedgeRing(gL, gT, gR, gB);
+  if (h._flowers){
+    for(let k=0;k<9;k++){ const fx=gL+10+(k%3)*7, fy=gT+12+((k/3|0))*6;
+      g.fillStyle=[P.flower1,P.flower2,P.flower3][k%3]; g.fillRect(fx,fy,3,3); }
+  }
   g.restore();
 }
-// Manoir à étage : toit à deux pans haut, deux rangées de fenêtres
-function drawManor(h){
-  const cx=h.x+h.w/2, cy=h.y+h.h/2, w=h.w, hh=h.h, hw=w/2, hht=hh/2;
-  g.save();g.translate(cx,cy);
-  fr(-hw-18,-hht-12,w+36,hh+28,P.law,P.hh,1.5,7);
-  for(let i=0;i<=6;i++){ci(-hw-14+i*(w+28)/6,-hht-10,6,P.hel,P.he,0.5);ci(-hw-14+i*(w+28)/6,hht+14,6,P.hel,P.he,0.5);}
-  g.fillStyle='rgba(0,0,0,0.2)';g.fillRect(-hw+4,hht-2,w,8);
-  const wc=h.label?'#f0e0d0':P.mw, rc=h.label?'#3a2858':P.mr, rcl=h.label?'#504878':P.mrl;
-  const roofH=Math.round(hh*0.42), wallY=-hht+roofH, wh=hh-roofH, eave=7;
-  // Mur (2 niveaux)
-  fr(-hw,wallY,w,wh,wc,P.mw2,2);
-  g.fillStyle=P.mw2;g.fillRect(-hw,wallY+wh*0.5,w,2);
-  for(let i=0;i<3;i++){ const fx=-hw+w*0.14+i*w*0.3;                 // fenêtres étage
-    fr(fx,wallY+3,w*0.14,wh*0.32,P.mwi,P.mw2,1);}
-  for(let i=0;i<2;i++){ const fx=-hw+w*0.16+i*w*0.46;                // fenêtres RDC
-    fr(fx,wallY+wh*0.56,w*0.16,wh*0.34,P.mwi,P.mw2,1);}
-  const dw=Math.max(9,w*0.2), dh=wh*0.44;
-  fr(-dw/2,hht-dh,dw,dh,P.vdo,P.mw2,1.5,2);                          // porte centrale
-  // Toit 2 pans
-  poly([[-hw-eave,wallY],[hw+eave,wallY],[hw*0.5,-hht],[-hw*0.5,-hht]],rc);
-  poly([[0,-hht-4],[hw*0.5,-hht],[ -hw*0.5,-hht]],rcl);
-  g.fillStyle=rcl;g.fillRect(Math.round(-hw*0.5),-hht,Math.round(w*0.5),2);
-  g.fillStyle='#2a1c40';g.fillRect(-hw-eave,wallY-2,w+2*eave,2);
-  fr(hw*0.5,-hht-12,8,16,P.sdd,'#6a4420',1);                         // cheminée
-  g.restore();
+
+// Lampadaire à l'anglaise (mât + lanterne)
+function drawLamp(x, y){
+  g.fillStyle='rgba(0,0,0,0.22)'; g.fillRect(x-3, y+1, 8, 2);
+  g.fillStyle='#2a2a2a'; g.fillRect(x-1, y-15, 2, 16);          // mât
+  g.fillStyle='#1c1c1c'; g.fillRect(x-3, y-19, 6, 4);           // lanterne
+  g.fillStyle='#ffe9a0'; g.fillRect(x-2, y-18, 4, 2);           // verre lumineux
+  g.fillStyle='#2a2a2a'; g.fillRect(x-3, y-20, 6, 1);           // chapeau
+}
+
+// Voiture garée (vue de dessus), carrosserie + vitres + roues
+function drawParkedCar(x, y, col){
+  g.fillStyle='rgba(0,0,0,0.25)'; fr(x+1, y+2, 14, 26, 'rgba(0,0,0,0.22)', null, 0, 3);
+  fr(x+1, y, 12, 26, col, null, 0, 3);
+  g.fillStyle='rgba(255,255,255,0.18)'; g.fillRect(x+2, y+1, 10, 3);
+  g.fillStyle='#9cc8e0'; fr(x+3, y+4, 8, 6, '#9cc8e0', null, 0, 1); fr(x+3, y+15, 8, 6, '#9cc8e0', null, 0, 1);
+  g.fillStyle='#e8e8e8'; g.fillRect(x+3, y+1, 8, 2);            // pare-brise haut
+  g.fillStyle='#1a1a1a'; g.fillRect(x-1, y+4, 2, 5); g.fillRect(x+13, y+4, 2, 5);  // roues
+  g.fillRect(x-1, y+17, 2, 5); g.fillRect(x+13, y+17, 2, 5);
 }
 
 // Touffe d'herbe haute (déco, non bloquante)
@@ -368,8 +455,11 @@ function paintWorld(ctx) {
   el(POND.cx, POND.cy, POND.rx, POND.ry, P.wa);
   el(POND.cx, POND.cy, POND.rx-8, POND.ry-8, P.wal);
   el(POND.cx-30, POND.cy-20, POND.rx*0.4, POND.ry*0.3, P.was+'66');
-  // 7. Maisons (du nord au sud pour un léger recouvrement)
-  HOUSES.slice().sort((a,b)=>a.y-b.y).forEach(h => h.type==='manor'?drawManor(h):drawVilla(h));
+  // 7. Maisons (du nord au sud) — villas forêt à toit plat, lisière à toit pentu
+  HOUSES.slice().sort((a,b)=>a.y-b.y).forEach((h,i)=>{ h._flowers = (i % 3 === 1); drawHouse(h, h.type==='manor'); });
+  // 7b. Voitures garées devant + lampadaires des allées
+  CARS.forEach(c => drawParkedCar(c.x, c.y, c.col));
+  LAMPS.forEach(l => drawLamp(l.x, l.y));
   // 8. Arbres : bordure forêt + décor clairière
   forestBorder();
   DECO_TREES.forEach(([x,y,r]) => drawTree(x, y, r));
@@ -397,7 +487,8 @@ export function buildWorld(makeCanvas) {
     label: 'Hameau du Prieuré',
     spawn: snapWalkable(grid, SPAWN_ANCHOR.x, SPAWN_ANCHOR.y),
     bike:  snapWalkable(grid, BIKE_ANCHOR.x, BIKE_ANCHOR.y),
-    npcs:  NPC_ANCHORS.map(n => ({ ...n, ...snapWalkable(grid, n.x, n.y) })),
+    npcs:  [...NPC_ANCHORS, ...DOGS, ...PASSANTS]
+             .map(n => ({ ...n, ...snapWalkable(grid, n.x, n.y) })),
     golf:  { x: 1460, y: 396 },   // sortie est (golf, à venir)
   };
   // Le rendu n'est possible qu'en navigateur (Canvas réel)

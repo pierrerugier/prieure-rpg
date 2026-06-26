@@ -102,14 +102,18 @@ const WALKABLE = new Set([
 
 // ── SPRITES PERSONNAGES (vue de dessus, animés) ─────────────
 // Look du joueur (Pierre : polo écru, short beige — « habillé par sa mère »)
-const PLAYER_LOOK = { hair:'#7a4a20', skin:'#f0c888', shirt:'#e8dcc0', pants:'#cdb074', shoes:'#5a3a18' };
+const PLAYER_LOOK = { hair:'#7a4a20', skin:'#f0c888', shirt:'#e8dcc0', pants:'#cdb074', shoes:'#5a3a18', hairStyle:'short' };
 
 // Dessine un personnage 16×22 centré en (cx,cy) (cy ≈ torse).
-// frame ∈ 0..3 anime jambes/bras. dir ∈ up/down/left/right.
+// look : {hair,skin,shirt,pants,shoes, hairStyle:'short'|'long'|'curly',
+//         hat:couleur|null, glasses:bool, build:'normal'|'chubby'}
 function drawCharacter(ctx, cx, cy, dir, frame, look, onBike) {
-  const x = cx - 8, y = cy - 14;        // coin haut-gauche du sprite
-  const s = [0, 1, 0, -1][frame & 3];   // phase de marche
-  // Ombre portée
+  const x = cx - 8, y = cy - 14;
+  const s = [0, 1, 0, -1][frame & 3];
+  const skin = look.skin || '#f0c888', hair = look.hair || '#3a2a18';
+  const shirt = look.shirt || '#c0c0c0', pants = look.pants || '#39414f', shoes = look.shoes || '#2a2a30';
+  const chubby = look.build === 'chubby';
+  // Ombre
   ctx.fillStyle = 'rgba(0,0,0,0.22)';
   ctx.fillRect(x + 3, y + 20, 10, 3);
 
@@ -118,39 +122,58 @@ function drawCharacter(ctx, cx, cy, dir, frame, look, onBike) {
   if (mir) { ctx.translate(x * 2 + 16, 0); ctx.scale(-1, 1); }
   const d = mir ? 'left' : dir;
 
-  // Jambes (pantalon) + chaussures — longueur alternée = marche
-  const llh = 4 + Math.max(0, s),  rlh = 4 + Math.max(0, -s);
-  ctx.fillStyle = look.pants;
+  // Jambes + chaussures (marche)
+  const llh = 4 + Math.max(0, s), rlh = 4 + Math.max(0, -s);
+  ctx.fillStyle = pants;
   ctx.fillRect(x + 4, y + 15, 3, llh);
   ctx.fillRect(x + 9, y + 15, 3, rlh);
-  ctx.fillStyle = look.shoes;
+  ctx.fillStyle = shoes;
   ctx.fillRect(x + 4, y + 15 + llh, 3, 2);
   ctx.fillRect(x + 9, y + 15 + rlh, 3, 2);
 
-  // Corps (haut)
-  ctx.fillStyle = look.shirt;
-  ctx.fillRect(x + 3, y + 8, 10, 7);
-  // Bras (peau), balancement opposé aux jambes
-  ctx.fillStyle = look.skin;
-  ctx.fillRect(x + 2, y + 9 - s, 2, 5);
-  ctx.fillRect(x + 12, y + 9 + s, 2, 5);
+  // Corps (plus large si enrobé)
+  const bx = chubby ? x + 2 : x + 3, bw = chubby ? 12 : 10;
+  ctx.fillStyle = shirt;
+  ctx.fillRect(bx, y + 8, bw, 7);
+  // Bras
+  ctx.fillStyle = skin;
+  ctx.fillRect(bx - 1, y + 9 - s, 2, 5);
+  ctx.fillRect(bx + bw - 1, y + 9 + s, 2, 5);
 
-  // Tête + cheveux + yeux selon la direction
-  ctx.fillStyle = look.skin;
+  // Tête
+  ctx.fillStyle = skin;
   ctx.fillRect(x + 4, y + 3, 8, 5);
-  ctx.fillStyle = look.hair;
+  // Cheveux
+  ctx.fillStyle = hair;
   if (d === 'up') {
-    ctx.fillRect(x + 3, y, 10, 8);            // arrière de la tête (cheveux)
+    ctx.fillRect(x + 3, y, 10, 8);
+    if (look.hairStyle === 'long' || look.hairStyle === 'curly') { ctx.fillRect(x + 2, y + 6, 2, 6); ctx.fillRect(x + 12, y + 6, 2, 6); }
   } else {
     ctx.fillRect(x + 3, y, 10, 4);
-    ctx.fillRect(x + 3, y + 3, 2, 2);
-    ctx.fillRect(x + 11, y + 3, 2, 2);
+    ctx.fillRect(x + 3, y + 3, 2, 2); ctx.fillRect(x + 11, y + 3, 2, 2);
+    if (look.hairStyle === 'long')  { ctx.fillRect(x + 2, y + 3, 2, 8); ctx.fillRect(x + 12, y + 3, 2, 8); }
+    if (look.hairStyle === 'curly') { ctx.fillRect(x + 2, y, 2, 2); ctx.fillRect(x + 12, y, 2, 2);
+                                      ctx.fillRect(x + 1, y + 3, 2, 6); ctx.fillRect(x + 13, y + 3, 2, 6); }
+    // Yeux
     ctx.fillStyle = '#101010';
     if (d === 'down') { ctx.fillRect(x + 5, y + 5, 1, 1); ctx.fillRect(x + 10, y + 5, 1, 1); }
-    else /* left */   { ctx.fillRect(x + 5, y + 5, 1, 1); }
+    else              { ctx.fillRect(x + 5, y + 5, 1, 1); }
+  }
+  // Lunettes (Antoine)
+  if (look.glasses && d !== 'up') {
+    ctx.fillStyle = '#283038';
+    if (d === 'down') { ctx.fillRect(x + 4, y + 5, 3, 2); ctx.fillRect(x + 9, y + 5, 3, 2); ctx.fillRect(x + 7, y + 5, 2, 1); }
+    else              { ctx.fillRect(x + 4, y + 5, 4, 2); }
+  }
+  // Casquette (Charles)
+  if (look.hat) {
+    ctx.fillStyle = look.hat;
+    ctx.fillRect(x + 3, y - 1, 10, 3);
+    ctx.fillRect(x + 4, y - 3, 8, 2);
+    if (d !== 'up') ctx.fillRect(x + 10, y + 1, 4, 2);   // visière vers l'avant
   }
 
-  // Vélo (roues + cadre sous le perso)
+  // Vélo
   if (onBike) {
     ctx.fillStyle = '#202020';
     ctx.fillRect(x + 1, y + 18, 4, 4);
@@ -161,6 +184,48 @@ function drawCharacter(ctx, cx, cy, dir, frame, look, onBike) {
     ctx.fillStyle = '#d02020';
     ctx.fillRect(x + 4, y + 18, 8, 2);
   }
+  ctx.restore();
+}
+
+// Chien vu de dessus (~14×10), animation de pattes
+function drawDog(ctx, cx, cy, dir, frame, col) {
+  const x = cx - 7, y = cy - 6;
+  const s = [0, 1, 0, -1][frame & 3];
+  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(x + 2, y + 9, 11, 2);
+  const c = col || '#8a6038', cd = '#5e3e20';
+  // corps
+  ctx.fillStyle = c; ctx.fillRect(x + 2, y + 3, 10, 5);
+  ctx.fillStyle = cd; ctx.fillRect(x + 2, y + 7, 10, 1);
+  // pattes
+  ctx.fillStyle = cd;
+  ctx.fillRect(x + 3, y + 8, 2, 1 + Math.max(0, s));
+  ctx.fillRect(x + 9, y + 8, 2, 1 + Math.max(0, -s));
+  // tête selon dir
+  ctx.fillStyle = c;
+  const hx = dir === 'left' ? x : dir === 'right' ? x + 10 : x + 9;
+  ctx.fillRect(hx, y + 1, 5, 5);
+  ctx.fillStyle = cd; ctx.fillRect(hx + (dir === 'left' ? 0 : 4), y, 1, 2); // oreille
+  ctx.fillStyle = '#101010'; ctx.fillRect(hx + (dir === 'left' ? 1 : 3), y + 3, 1, 1); // œil
+  // queue
+  ctx.fillStyle = c; ctx.fillRect(dir === 'left' ? x + 11 : x + 1, y + 2, 1, 3);
+}
+
+// Voiture vue de dessus (garée), ~26×14, en (x,y) coin haut-gauche
+function drawCar(ctx, x, y, col, vertical) {
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(x + 2, y + (vertical ? 2 : 12), vertical ? 12 : 26, vertical ? 26 : 4);
+  ctx.save();
+  if (vertical) { ctx.translate(x + 14, y); ctx.rotate(Math.PI / 2); }
+  // carrosserie
+  ctx.fillStyle = col; ctx.fillRect(x, y, 26, 12);
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(x, y, 26, 3);
+  // vitres
+  ctx.fillStyle = '#9cc8e0';
+  ctx.fillRect(x + 4, y + 3, 6, 6); ctx.fillRect(x + 16, y + 3, 6, 6);
+  // pare-chocs / phares
+  ctx.fillStyle = '#e8e8e8'; ctx.fillRect(x + 24, y + 2, 2, 2); ctx.fillRect(x + 24, y + 8, 2, 2);
+  ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x + 1, y - 1, 4, 2); ctx.fillRect(x + 21, y - 1, 4, 2);
+  ctx.fillRect(x + 1, y + 11, 4, 2); ctx.fillRect(x + 21, y + 11, 4, 2);
   ctx.restore();
 }
 
@@ -206,6 +271,7 @@ class Game {
 
     this.lastTime = 0;
     this.running  = false;
+    this.paused   = false;
 
     this.currentScene = 'hamlet'; // 'hamlet' | 'golf_ouest' | 'golf_est' | 'golf_minigame' | 'dialogue'
   }
@@ -214,7 +280,8 @@ class Game {
     await this.tilemap.loadMap(this.currentScene);
     this.player.x = this.tilemap.spawn.x;
     this.player.y = this.tilemap.spawn.y;
-    this.player.hasBike = !!this.saveData.player.flags.bike;
+    this.player.ownsBike = !!this.saveData.player.flags.bike;
+    this.player.hasBike  = false;  // on démarre à pied (B pour monter)
     this.camera.follow(this.player);
     this.camera.snap(this.player, this.tilemap);
     this.npcMgr.loadNPCs(this.tilemap);
@@ -234,11 +301,23 @@ class Game {
 
   update(dt) {
     this.updateToast(dt);
+
+    // Menu pause (Échap) — prioritaire
+    if (this.input.isJustPressed('Start')) this.paused = !this.paused;
+    if (this.paused) { this.input.flush(); return; }
+
     if (this.dialogueMgr.active) {
       this.dialogueMgr.update(this.input);
       this.input.flush();
       return;
     }
+
+    // Vélo : activer / désactiver (une fois ramassé)
+    if (this.input.isJustPressed('Bike') && this.player.ownsBike) {
+      this.player.hasBike = !this.player.hasBike;
+      this.showMessage(this.player.hasBike ? 'Vélo : EN SELLE' : 'Vélo : à pied');
+    }
+
     this.player.update(dt, this.input, this.tilemap);
     this.camera.update(this.player, this.tilemap);
     this.npcMgr.update(dt, this.player, this.tilemap);
@@ -252,12 +331,14 @@ class Game {
     if (bike && !this.saveData.player.flags.bike &&
         Math.hypot(this.player.x - bike.x, this.player.y - bike.y) < 14) {
       this.saveData.player.flags.bike = true;
+      this.player.ownsBike = true;
       this.player.hasBike = true;
-      this.showMessage('Vélo récupéré !  (file plus vite)');
+      if (!this.saveData.player.inventory.includes('velo')) this.saveData.player.inventory.push('velo');
+      this.showMessage('Vélo récupéré !  (B pour monter/descendre)');
       this.save();
     }
 
-    // NPC interaction
+    // Interaction PNJ / chien
     if (this.input.isJustPressed('A')) {
       const npc = this.npcMgr.getFacingNPC(this.player);
       if (npc) this.talkTo(npc);
@@ -265,8 +346,15 @@ class Game {
   }
 
   talkTo(npc) {
-    // Pour l'instant : pas de mission, juste 2-3 lignes de salutation.
     npc.facePlayer(this.player);
+    if (npc.kind === 'dog') {
+      this.dialogueMgr.start([
+        { speaker: 'pierre', text: 'Comment tu vas, toi ?' },
+        { speaker: npc.name || 'chien', text: 'Ouaf ouaf !' },
+      ], npc, this);
+      return;
+    }
+    // PNJ : 2-3 lignes de salutation (clé de dialogue ou lignes inline)
     this.dialogueMgr.start(npc.idle, npc, this);
   }
 
@@ -312,6 +400,7 @@ class Game {
     this.renderHUD(b);
     this.renderToast(b);
     if (this.dialogueMgr.active) this.dialogueMgr.render(b);
+    if (this.paused) this.renderPause(b);
 
     // Upscale buffer → display canvas
     const ctx = this.ctx;
@@ -352,15 +441,61 @@ class Game {
     b.fillText(this.tilemap.currentZoneLabel, 120, 12);
     b.textAlign = 'left';
 
-    // Indicateur vélo (bas-gauche)
-    if (this.player.hasBike) {
-      b.fillStyle = 'rgba(0,0,0,0.6)';
-      b.fillRect(4, CONFIG.SCREEN_H - 16, 30, 12);
+    // Indicateur vélo (bas-gauche) — visible dès qu'on le possède
+    if (this.player.ownsBike) {
+      const on = this.player.hasBike;
+      b.fillStyle = on ? 'rgba(40,120,40,0.75)' : 'rgba(0,0,0,0.6)';
+      b.fillRect(4, CONFIG.SCREEN_H - 16, 34, 12);
       drawBicycle(b, 6, CONFIG.SCREEN_H - 14);
-      b.fillStyle = '#a0e0ff';
+      b.fillStyle = on ? '#b8ffb8' : '#88aabb';
       b.font = '6px monospace';
-      b.fillText('VÉLO', 18, CONFIG.SCREEN_H - 6);
+      b.fillText(on ? 'VÉLO ✓' : 'VÉLO (B)', 18, CONFIG.SCREEN_H - 6);
     }
+  }
+
+  // ── MENU PAUSE ────────────────────────────────────────────
+  renderPause(b) {
+    const W = CONFIG.SCREEN_W, H = CONFIG.SCREEN_H;
+    b.fillStyle = 'rgba(8,16,12,0.82)';
+    b.fillRect(0, 0, W, H);
+    b.fillStyle = '#c0f080';
+    b.font = 'bold 9px monospace';
+    b.textAlign = 'center';
+    b.fillText('— PAUSE —', W / 2, 16);
+    b.textAlign = 'left';
+
+    // Carte (mini-carte du monde) à gauche
+    const mx = 8, my = 24, mw = 120, mh = 120;
+    b.fillStyle = '#0c160c'; b.fillRect(mx - 1, my - 1, mw + 2, mh + 2);
+    if (this.tilemap.ground) {
+      const sc = Math.min(mw / this.tilemap.widthPx, mh / this.tilemap.heightPx);
+      const dw = this.tilemap.widthPx * sc, dh = this.tilemap.heightPx * sc;
+      b.drawImage(this.tilemap.ground, mx, my, dw, dh);
+      // position du joueur
+      b.fillStyle = '#ff3030';
+      b.fillRect(mx + this.player.x * sc - 1, my + this.player.y * sc - 1, 3, 3);
+    }
+    b.fillStyle = '#6a8a6a'; b.font = '6px monospace';
+    b.fillText('CARTE', mx + 2, my + mh + 8);
+
+    // Objets (inventaire) à droite
+    const ix = 138;
+    b.fillStyle = '#c0f080'; b.font = 'bold 7px monospace';
+    b.fillText('OBJETS', ix, 30);
+    b.font = '6px monospace'; b.fillStyle = '#e8e8e8';
+    const inv = this.saveData.player.inventory;
+    if (inv.length === 0) { b.fillStyle = '#6a8a6a'; b.fillText('(rien pour l\'instant)', ix, 42); }
+    else inv.forEach((it, i) => {
+      const label = it === 'velo' ? 'Vélo' : it;
+      b.fillText('• ' + label, ix, 42 + i * 9);
+    });
+
+    // Contrôles
+    b.fillStyle = '#6a8a6a'; b.font = '6px monospace';
+    b.fillText('ZQSD: bouger', ix, H - 40);
+    b.fillText('Entrée/X: parler', ix, H - 31);
+    b.fillText('B: vélo on/off', ix, H - 22);
+    b.fillText('Échap: fermer', ix, H - 13);
   }
 
   loadSave() {
@@ -468,7 +603,8 @@ class Player {
     this.frame = 0;        // 0..3 cycle de marche
     this.animT = 0;
     this.moving = false;
-    this.hasBike = false;
+    this.ownsBike = false;   // possède le vélo (ramassé)
+    this.hasBike = false;    // est en selle
   }
 
   update(dt, input, tilemap) {
@@ -568,18 +704,20 @@ class NPC {
   constructor(def) {
     const data = NPCS[def.id] || {};
     this.id    = def.id;
-    this.name  = data.name || def.id;
+    this.kind  = def.kind || 'npc';   // 'npc' | 'passant' | 'dog'
+    this.name  = def.name || data.name || def.id;
     this.x     = def.x;     // déjà en px monde (fourni par world.js)
     this.y     = def.y;
     this.homeX = this.x;
     this.homeY = this.y;
     this.dir   = 'down';
-    this.firstMeet = def.firstMeet || null;
-    this.idle      = def.idle || null;
+    this.idle      = def.idle || null;    // clé OU lignes inline
     this.wander    = !!def.wander;
+    this.range     = def.range || 40;     // rayon d'errance
+    this.color     = def.color || '#8a6038';
     this.frame     = 0;
     this._t        = Math.random() * 2;
-    this.look = {
+    this.look = def.look || {
       hair:'#3a2a18', skin:'#f0c888', shirt:def.color || '#c0c0c0',
       pants:'#39414f', shoes:'#2a2a30',
     };
@@ -593,27 +731,29 @@ class NPC {
 
   update(dt, player, tilemap) {
     this._t += dt;
-    // Idle « respiration » (léger balancement)
     this.frame = Math.sin(this._t * 2.2) > 0 ? 1 : 0;
     if (this.wander) {
       this._wt = (this._wt || 1) - dt;
       if (this._wt <= 0) {
-        this._wt = 0.8 + Math.random() * 1.8;
+        this._wt = (this.kind === 'dog' ? 0.4 : 0.9) + Math.random() * 1.6;
         const dirs = ['up','down','left','right'];
         this.dir = dirs[(Math.random() * 4) | 0];
         const d = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] }[this.dir];
-        const nx = this.x + d[0] * 8, ny = this.y + d[1] * 8;
-        if (Math.hypot(nx - this.homeX, ny - this.homeY) < 40 &&
+        const step = this.kind === 'dog' ? 10 : 8;
+        const nx = this.x + d[0] * step, ny = this.y + d[1] * step;
+        if (Math.hypot(nx - this.homeX, ny - this.homeY) < this.range &&
             (!tilemap || !tilemap.isSolidPx(nx, ny + 6))) {
           this.x = nx; this.y = ny;
+          this.frame = 1;
         }
       }
     }
   }
 
   render(ctx, camX, camY) {
-    drawCharacter(ctx, Math.round(this.x - camX), Math.round(this.y - camY),
-                  this.dir, this.frame, this.look, false);
+    const sx = Math.round(this.x - camX), sy = Math.round(this.y - camY);
+    if (this.kind === 'dog') drawDog(ctx, sx, sy, this.dir, this.frame, this.color);
+    else drawCharacter(ctx, sx, sy, this.dir, this.frame, this.look, false);
   }
 }
 
@@ -666,13 +806,14 @@ class DialogueManager {
     this.speed    = 2; // chars/frame
   }
 
-  start(dialogueKey, npc, game, onEnd) {
+  start(dialogueRef, npc, game, onEnd) {
     this.npc   = npc;
     this.game  = game;
     this.onEnd = onEnd || null;
     this.pendingTransition = null;
 
-    const raw = DIALOGUES[dialogueKey];
+    // dialogueRef peut être une clé (string) OU des lignes inline (array)
+    const raw = Array.isArray(dialogueRef) ? dialogueRef : DIALOGUES[dialogueRef];
     let lines;
     if (!raw) {
       // Pas de dialogue défini : repli générique avec le bon ton
@@ -850,7 +991,9 @@ class InputManager {
     this.map = {
       ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down',
       z:'up', s:'down', q:'left', d:'right',
-      Enter:'A', ' ':'A', x:'B', Escape:'Start',
+      Z:'up', S:'down', Q:'left', D:'right',
+      Enter:'A', ' ':'A', x:'B', X:'B', Escape:'Start',
+      b:'Bike', B:'Bike',
     };
     document.addEventListener('keydown', e => {
       const k = this.map[e.key] || e.key;

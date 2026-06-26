@@ -38,10 +38,12 @@ const ok = (label, cond) => checks.push([label, !!cond]);
 
 ok('jeu démarré', game.running);
 ok('monde construit (grille de collision)', game.tilemap.cols > 0 && game.tilemap.solid);
-ok('8 PNJ chargés', game.npcMgr.npcs.length === 8);
+ok('8 PNJ humains', game.npcMgr.npcs.filter(n => n.kind === 'npc').length === 8);
+ok('chiens présents', game.npcMgr.npcs.filter(n => n.kind === 'dog').length >= 1);
+ok('passants présents', game.npcMgr.npcs.filter(n => n.kind === 'passant').length >= 1);
 ok('spawn sur case marchable', !game.tilemap.isSolidPx(game.player.x, game.player.y));
 ok('vélo placé sur le monde', game.tilemap.bike && !game.tilemap.isSolidPx(game.tilemap.bike.x, game.tilemap.bike.y));
-ok('tous les PNJ sur cases marchables',
+ok('tous les personnages sur cases marchables',
    game.npcMgr.npcs.every(n => !game.tilemap.isSolidPx(n.x, n.y)));
 
 // 30 frames sans crash
@@ -92,8 +94,27 @@ talkLines(victor);
 ok('dialogue de Victor déclenché', game.dialogueMgr.active);
 ok('1re réplique de Victor', /nouveau/i.test(game.dialogueMgr.lines[0]?.text || ''));
 const everyHas23 = game.npcMgr.npcs.every(n => { const l = talkLines(n); return l >= 2 && l <= 3; });
-ok('chaque PNJ a 2-3 lignes de dialogue', everyHas23);
+ok('chaque personnage a 2-3 lignes de dialogue', everyHas23);
 ok('aucune mission active (mises de côté)', game.saveData.missions.active.length === 0);
+
+// Chien → « Ouaf ouaf ! »
+const dog = game.npcMgr.npcs.find(n => n.kind === 'dog');
+talkLines(dog);
+ok('le chien fait « Ouaf »', /ouaf/i.test((game.dialogueMgr.lines.find(l => /ouaf/i.test(l.text)) || {}).text || ''));
+game.dialogueMgr.active = false;
+
+// Vélo activable / désactivable (B)
+game.player.ownsBike = true; game.player.hasBike = false;
+game.input.justDown['Bike'] = true; game.update(0.016);
+const rodeOn = game.player.hasBike;
+game.input.justDown['Bike'] = true; game.update(0.016);
+ok('vélo on/off avec B', rodeOn === true && game.player.hasBike === false);
+
+// Menu pause (Échap)
+game.input.justDown['Start'] = true; game.update(0.016);
+const wasPaused = game.paused;
+game.input.justDown['Start'] = true; game.update(0.016);
+ok('menu pause s\'ouvre/ferme (Échap)', wasPaused === true && game.paused === false);
 
 console.log('\n── RÉSULTATS DU SMOKE TEST ──');
 let pass=0;
