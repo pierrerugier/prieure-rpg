@@ -1,7 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
-// LE PRIEURÉ RPG — ENGINE STARTER
+// LE PRIEURÉ RPG — ENGINE
 // Moteur de jeu HTML5 Canvas, style Pokémon GBA
 // ═══════════════════════════════════════════════════════════════
+
+import { NPCS, MISSIONS, DIALOGUES, COLLECTIBLES, GOLF_HOLES, MAP_ZONES }
+  from './data_complete.js';
 
 // ── CONFIG ──────────────────────────────────────────────────
 const CONFIG = {
@@ -97,6 +100,36 @@ const WALKABLE = new Set([
   TILES.BUNKER, TILES.HOLE_CUP, TILES.NPC_SPAWN, TILES.ITEM_SPAWN, TILES.TRIGGER,
 ]);
 
+// ── GÉOGRAPHIE DU HAMEAU (coordonnées en tiles) ────────────
+// NB : on définit ici un repère tile cohérent pour la map moteur.
+// (Les positions pixel de data_complete.js étaient des repères de
+//  travail dans un autre référentiel — on les remplace par ceci.)
+const HAMLET = {
+  // Zone prairie jouable du hameau
+  clearing: { x0: 70, y0: 56, x1: 176, y1: 178 },
+  spawn:    { x: 104, y: 162 },              // devant la maison Jungers
+  // Maisons : [x, y, largeur, hauteur, type]  type: 'villa' | 'manor'
+  houses: {
+    jungers: { x: 94,  y: 150, w: 9, h: 7, type: 'villa',  label: 'Maison Jungers' },
+    lutreau: { x: 116, y: 72,  w: 12, h: 9, type: 'villa',  label: 'Villa Lutreau' },
+    paul:    { x: 64,  y: 150, w: 9, h: 7, type: 'villa',  label: 'Maison de Paul' },
+    kupi:    { x: 146, y: 158, w: 14, h: 11, type: 'manor', label: 'Le Manoir de Kupi' },
+    oscar:   { x: 150, y: 96,  w: 12, h: 10, type: 'manor', label: 'Manoir Webb' },
+    louis:   { x: 156, y: 118, w: 13, h: 10, type: 'manor', label: 'Manoir Martin' },
+  },
+  // PNJ présents dans le hameau : position en tiles + clé de dialogue
+  npcs: [
+    { id: 'victor',  x: 122, y: 84,  color: '#c83030', firstMeet: 'meet_victor_sequence', idle: 'victor_idle' },
+    { id: 'charles', x: 128, y: 82,  color: '#d08020', idle: 'charles_idle' },
+    { id: 'margot',  x: 119, y: 90,  color: '#e060a0', idle: 'margot_idle', wander: true },
+    { id: 'antoine', x: 124, y: 90,  color: '#5090c0', idle: 'antoine_idle' },
+    { id: 'oscar',   x: 156, y: 108, color: '#e8d040', idle: 'oscar_idle' },
+    { id: 'louis',   x: 162, y: 130, color: '#7050a0', idle: 'louis_idle' },
+    { id: 'kupi',    x: 152, y: 172, color: '#806040', idle: 'kupi_idle' },
+    { id: 'paul',    x: 69,  y: 159, color: '#404858', idle: 'paul_idle' },
+  ],
+};
+
 // ── CANVAS SETUP ────────────────────────────────────────────
 class Game {
   constructor() {
@@ -130,11 +163,11 @@ class Game {
 
   async init() {
     await this.tilemap.loadMap(this.currentScene);
-    this.player.x = 186 * CONFIG.TILE;
-    this.player.y = 325 * CONFIG.TILE;
+    this.player.x = HAMLET.spawn.x * CONFIG.TILE + 8;
+    this.player.y = HAMLET.spawn.y * CONFIG.TILE + 8;
     this.camera.follow(this.player);
     this.npcMgr.loadNPCs(this.currentScene);
-    this.missionMgr.init(this.saveData);
+    this.missionMgr.init(this.saveData, this);
     this.running = true;
     requestAnimationFrame(t => this.loop(t));
   }
@@ -149,8 +182,10 @@ class Game {
   }
 
   update(dt) {
+    this.updateToast(dt);
     if (this.dialogueMgr.active) {
       this.dialogueMgr.update(this.input);
+      this.input.flush();
       return;
     }
     this.player.update(dt, this.input, this.tilemap);
@@ -169,7 +204,28 @@ class Game {
     // NPC interaction
     if (this.input.isJustPressed('A')) {
       const npc = this.npcMgr.getFacingNPC(this.player);
-      if (npc) this.dialogueMgr.start(npc.dialogue, npc);
+      if (npc) this.talkTo(npc);
+    }
+  }
+
+  talkTo(npc) {
+    npc.facePlayer(this.player);
+    const state = this.saveData.npc_states[npc.id] || (this.saveData.npc_states[npc.id] = {});
+    // Première rencontre vs dialogue d'ambiance
+    const key = (npc.firstMeet && !state.met) ? npc.firstMeet : npc.idle;
+    this.dialogueMgr.start(key, npc, this, () => {
+      if (!state.met && npc.firstMeet) {
+        state.met = true;
+        this.onFirstMeet(npc);
+      }
+      this.save();
+    });
+  }
+
+  onFirstMeet(npc) {
+    // Mission "Le Nouveau" : rencontrer Victor
+    if (npc.id === 'victor') {
+      this.missionMgr.completeObjective('meet_victor', 'find_victor');
     }
   }
 
@@ -215,6 +271,7 @@ class Game {
     this.tilemap.renderLayer('overlay', b, camX, camY);
     // 5. Draw UI (dialogue box, HUD)
     this.renderHUD(b);
+    this.renderToast(b);
     if (this.dialogueMgr.active) this.dialogueMgr.render(b);
 
     // Upscale buffer → display canvas
@@ -298,9 +355,32 @@ class Game {
     });
   }
 
-  showMessage(text) {
-    // TODO: afficher message court en overlay
-    console.log('[MSG]', text);
+  showMessage(text, duration = 2.4) {
+    this._toast = { text, t: duration };
+  }
+
+  updateToast(dt) {
+    if (this._toast) {
+      this._toast.t -= dt;
+      if (this._toast.t <= 0) this._toast = null;
+    }
+  }
+
+  renderToast(b) {
+    if (!this._toast) return;
+    const W = CONFIG.SCREEN_W;
+    const tw = b.measureText ? Math.min(W - 20, this._toast.text.length * 4 + 12) : 120;
+    const x = (W - tw) / 2;
+    b.fillStyle = 'rgba(0,0,0,0.82)';
+    b.fillRect(x, 22, tw, 14);
+    b.strokeStyle = '#f8c020';
+    b.lineWidth = 1;
+    b.strokeRect(x, 22, tw, 14);
+    b.fillStyle = '#f8e060';
+    b.font = '6px monospace';
+    b.textAlign = 'center';
+    b.fillText(this._toast.text, W / 2, 31);
+    b.textAlign = 'left';
   }
 }
 
@@ -672,34 +752,197 @@ class Tilemap {
     return ts;
   }
 
+  // ── Helpers de construction de map ────────────────────────
+  _set(buf, x, y, tile) {
+    if (x < 0 || y < 0 || x >= this._bw || y >= this._bh) return;
+    buf[y * this._bw + x] = tile;
+  }
+  _fillRect(buf, x0, y0, x1, y1, tileFn) {
+    for (let y = y0; y <= y1; y++)
+      for (let x = x0; x <= x1; x++)
+        this._set(buf, x, y, typeof tileFn === 'function' ? tileFn(x, y) : tileFn);
+  }
+  // Une allée (route) en ligne, épaisseur donnée
+  _road(buf, x0, y0, x1, y1, thick = 2) {
+    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+    for (let i = 0; i <= steps; i++) {
+      const cx = Math.round(x0 + (x1 - x0) * i / steps);
+      const cy = Math.round(y0 + (y1 - y0) * i / steps);
+      for (let dx = 0; dx < thick; dx++)
+        for (let dy = 0; dy < thick; dy++)
+          this._set(buf, cx + dx, cy + dy, TILES.ROAD);
+    }
+  }
+  // Une maison : jardin + haie + bâtiment + toit (overlay) + porte
+  _house(floor, overlay, triggers, h) {
+    const { x, y, w, h: hh, type } = h;
+    const roof  = TILES.ROOF;
+    // Jardin (pelouse claire) + haie autour, avec une ouverture devant
+    this._fillRect(floor, x - 2, y - 2, x + w + 1, y + hh + 2, TILES.PRAIRIE_LIGHT);
+    // Haie périmètre
+    for (let gx = x - 2; gx <= x + w + 1; gx++) {
+      this._set(floor, gx, y - 2, TILES.HEDGE);
+      this._set(floor, gx, y + hh + 2, TILES.HEDGE);
+    }
+    for (let gy = y - 2; gy <= y + hh + 2; gy++) {
+      this._set(floor, x - 2, gy, TILES.HEDGE);
+      this._set(floor, x + w + 1, gy, TILES.HEDGE);
+    }
+    // Ouverture dans la haie (entrée du jardin, en bas-centre)
+    const gate = x + (w >> 1);
+    this._set(floor, gate,     y + hh + 2, TILES.PATH);
+    this._set(floor, gate + 1, y + hh + 2, TILES.PATH);
+    // Bâtiment
+    this._fillRect(floor, x, y, x + w - 1, y + hh - 1, TILES.BUILDING);
+    // Toit en overlay (moitié haute) — dessiné par-dessus le joueur
+    this._fillRect(overlay, x, y, x + w - 1, y + Math.ceil(hh / 2) - 1, roof);
+    // Porte (bas-centre du bâtiment)
+    const door = x + (w >> 1);
+    this._set(floor, door, y + hh - 1, TILES.DOOR);
+    // Allée entre la porte et l'ouverture de la haie
+    for (let py = y + hh; py <= y + hh + 1; py++) this._set(floor, door, py, TILES.PATH);
+  }
+
   async generateMap(mapId) {
-    // Génération procédurale basique
-    // CLAUDE CODE DOIT remplacer ça par la vraie tilemap chargée depuis JSON
-    // issue de Tiled Map Editor, basée sur la world map SVG fournie
     const w = CONFIG.MAP_W, h = CONFIG.MAP_H;
-    const floor   = new Uint8Array(w * h).fill(TILES.FOREST);
-    const overlay = new Uint8Array(w * h);
+    this._bw = w; this._bh = h;
+    const floor    = new Uint8Array(w * h);
+    const overlay  = new Uint8Array(w * h);
     const triggers = {};
 
     if (mapId === 'hamlet') {
-      // Zone prairie centrale du hameau
-      for (let ty = 5; ty < 90; ty++) {
-        for (let tx = 5; tx < 60; tx++) {
-          const v = Math.random();
-          floor[ty*w+tx] = v < 0.7 ? TILES.PRAIRIE : TILES.PRAIRIE_LIGHT;
-        }
+      // 1. Tout en forêt
+      this._fillRect(floor, 0, 0, w - 1, h - 1,
+        (x, y) => (((x * 7 + y * 13) & 0xf) < 5 ? TILES.FOREST_DEEP : TILES.FOREST));
+      // Quelques arbres denses en lisière
+      this._fillRect(floor, 0, 0, w - 1, h - 1, (x, y) => {
+        const cur = floor[y * w + x];
+        return ((x * 31 + y * 17) % 23 === 0) ? TILES.TREE : cur;
+      });
+
+      // 2. Clairière prairie du hameau
+      const c = HAMLET.clearing;
+      this._fillRect(floor, c.x0, c.y0, c.x1, c.y1,
+        (x, y) => (((x * 5 + y * 11) & 0xf) < 6 ? TILES.PRAIRIE_LIGHT : TILES.PRAIRIE));
+
+      // 3. Les trois allées
+      // Allée des Fougères (axe nord-sud principal)
+      this._road(floor, 110, c.y0, 110, c.y1, 3);
+      // Allée des Hameaux (ouest, parallèle)
+      this._road(floor, 76, 96, 76, c.y1, 2);
+      this._road(floor, 76, 162, 110, 162, 2);   // raccord vers Fougères
+      // Allée de la Lisière (diagonale NE, donne sur le parcours Est)
+      this._road(floor, 112, 150, 168, 100, 2);
+      // Place du Prieuré (cul-de-sac central, gravier)
+      this._fillRect(floor, 104, 158, 118, 170, TILES.GRAVEL);
+
+      // 4. Les maisons
+      for (const key in HAMLET.houses) {
+        this._house(floor, overlay, triggers, HAMLET.houses[key]);
       }
-      // Allée des Fougères
-      for (let ty = 0; ty < 90; ty++) {
-        floor[ty*w+17] = TILES.ROAD;
-        floor[ty*w+18] = TILES.ROAD;
-        floor[ty*w+19] = TILES.ROAD;
+
+      // 5. Triggers : sortie vers le golf (bout est de l'allée de la Lisière)
+      for (let ty = 99; ty <= 102; ty++) {
+        triggers[`169,${ty}`] = { type: 'transition', map: 'golf_ouest', x: 20, y: 60 };
+        triggers[`170,${ty}`] = { type: 'transition', map: 'golf_ouest', x: 20, y: 60 };
       }
-      // TODO: Ajouter toutes les maisons, allées, haies depuis la world map
+
+      // S'assurer que le spawn est bien marchable
+      this._set(floor, HAMLET.spawn.x, HAMLET.spawn.y, TILES.PRAIRIE);
+
       return { floor, overlay, triggers, w, h, label: 'Hameau du Prieuré' };
     }
 
-    return { floor, overlay, triggers, w, h, label: 'Golf du Prieuré' };
+    // ── Golf (placeholder jouable en attendant la vraie géo) ──
+    this._fillRect(floor, 0, 0, w - 1, h - 1,
+      (x, y) => (((x * 7 + y * 13) & 0xf) < 5 ? TILES.FOREST_DEEP : TILES.FOREST));
+    // Un fairway central + green
+    this._fillRect(floor, 14, 30, 90, 90, TILES.FAIRWAY);
+    this._fillRect(floor, 18, 40, 40, 80, TILES.ROUGH);
+    this._fillRect(floor, 70, 50, 86, 70, TILES.GREEN);
+    this._set(floor, 78, 60, TILES.HOLE_CUP);
+    this._set(floor, 79, 59, TILES.FLAG);
+    // Retour vers le hameau
+    for (let ty = 58; ty <= 62; ty++) {
+      triggers[`14,${ty}`] = { type: 'transition', map: 'hamlet', x: 167, y: 100 };
+      triggers[`15,${ty}`] = { type: 'transition', map: 'hamlet', x: 167, y: 100 };
+    }
+    return { floor, overlay, triggers, w, h, label: 'Parcours Ouest' };
+  }
+}
+
+// ── NPC ─────────────────────────────────────────────────────
+class NPC {
+  constructor(def) {
+    const data = NPCS[def.id] || {};
+    this.id    = def.id;
+    this.name  = data.name || def.id;
+    this.x     = def.x * CONFIG.TILE + 8;   // centre de la tile
+    this.y     = def.y * CONFIG.TILE + 8;
+    this.homeX = this.x;
+    this.homeY = this.y;
+    this.dir   = 'down';
+    this.color = def.color || '#c0c0c0';
+    this.firstMeet = def.firstMeet || null;
+    this.idle      = def.idle || null;
+    this.wander    = !!def.wander;
+    this.frame     = 0;
+    this._t        = Math.random() * 2;
+    this._bob      = 0;
+  }
+
+  facePlayer(player) {
+    const dx = player.x - this.x, dy = player.y - this.y;
+    if (Math.abs(dx) > Math.abs(dy)) this.dir = dx > 0 ? 'right' : 'left';
+    else                             this.dir = dy > 0 ? 'down'  : 'up';
+  }
+
+  update(dt, player) {
+    // Petite animation d'idle (respiration) ; errance légère si wander
+    this._t += dt;
+    this._bob = Math.sin(this._t * 3) < 0 ? 0 : 1;
+    if (this.wander) {
+      this._wt = (this._wt || 0) - dt;
+      if (this._wt <= 0) {
+        this._wt = 1 + Math.random() * 2;
+        const dirs = ['up','down','left','right'];
+        this.dir = dirs[(Math.random() * 4) | 0];
+        const d = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] }[this.dir];
+        const nx = this.x + d[0] * CONFIG.TILE;
+        const ny = this.y + d[1] * CONFIG.TILE;
+        // reste près de chez soi
+        if (Math.hypot(nx - this.homeX, ny - this.homeY) < CONFIG.TILE * 4) {
+          this.x = nx; this.y = ny;
+        }
+      }
+    }
+  }
+
+  render(ctx, camX, camY) {
+    const sx = Math.round(this.x - camX) - 8;
+    const sy = Math.round(this.y - camY) - 14 + this._bob;
+    // Ombre
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(sx + 3, sy + 21, 10, 3);
+    // Tête
+    ctx.fillStyle = '#f0c888';
+    ctx.fillRect(sx + 4, sy, 8, 7);
+    ctx.fillStyle = '#101010';
+    if (this.dir !== 'up') {
+      ctx.fillRect(sx + 5, sy + 4, 1, 1);
+      ctx.fillRect(sx + 9, sy + 4, 1, 1);
+    }
+    // Corps (couleur distinctive du perso)
+    ctx.fillStyle = this.color;
+    ctx.fillRect(sx + 3, sy + 7, 10, 8);
+    // Bras
+    ctx.fillStyle = '#f0c888';
+    ctx.fillRect(sx + 2, sy + 7, 2, 5);
+    ctx.fillRect(sx + 12, sy + 7, 2, 5);
+    // Jambes
+    ctx.fillStyle = '#3a3a40';
+    ctx.fillRect(sx + 3, sy + 15, 4, 5);
+    ctx.fillRect(sx + 9, sy + 15, 4, 5);
   }
 }
 
@@ -709,7 +952,10 @@ class NPCManager {
 
   loadNPCs(mapId) {
     this.npcs = [];
-    // TODO: charger depuis data_complete.js selon la map
+    if (mapId === 'hamlet') {
+      this.npcs = HAMLET.npcs.map(def => new NPC(def));
+    }
+    // (Golf : PNJ à ajouter quand la map golf sera construite)
   }
 
   update(dt, player) {
@@ -746,20 +992,51 @@ class DialogueManager {
     this.speed    = 2; // chars/frame
   }
 
-  start(dialogueKey, npc) {
-    // TODO: charger depuis DIALOGUES[dialogueKey]
-    this.lines = [
-      { speaker: npc?.name || '???', text: 'Dialogue à implémenter depuis data_complete.js' }
-    ];
+  start(dialogueKey, npc, game, onEnd) {
+    this.npc   = npc;
+    this.game  = game;
+    this.onEnd = onEnd || null;
+    this.pendingTransition = null;
+
+    const raw = DIALOGUES[dialogueKey];
+    let lines;
+    if (!raw) {
+      // Pas de dialogue défini : repli générique avec le bon ton
+      lines = [{ speaker: npc?.name || '???', text: '...' }];
+    } else if (Array.isArray(raw[0])) {
+      // Pool d'ambiance : tableau de répliques, on en pioche une au hasard
+      const pool = raw[(Math.random() * raw.length) | 0];
+      lines = pool.map(t => ({ speaker: npc?.name || '???', text: t }));
+    } else {
+      // Séquence scénarisée : on sépare l'affichage des actions (transition…)
+      lines = [];
+      for (const l of raw) {
+        if (l.type === 'transition') this.pendingTransition = l;
+        else lines.push(l);
+      }
+    }
+
+    this.lines   = lines;
     this.current = 0;
     this.text    = '';
     this.textPos = 0;
     this.active  = true;
   }
 
+  finish() {
+    this.active = false;
+    if (this.onEnd) { const cb = this.onEnd; this.onEnd = null; cb(); }
+    if (this.pendingTransition && this.game) {
+      const t = this.pendingTransition;
+      this.pendingTransition = null;
+      // Transition vers un mini-jeu/scène si supportée (sinon ignorée proprement)
+      if (t.to && this.game.transitionTo) this.game.transitionTo(t.to, t.x || 0, t.y || 0);
+    }
+  }
+
   update(input) {
     const line = this.lines[this.current];
-    if (!line) { this.active = false; return; }
+    if (!line) { this.finish(); return; }
 
     // Typewriter effect
     if (this.textPos < line.text.length) {
@@ -775,7 +1052,7 @@ class DialogueManager {
       } else {
         this.current++;
         if (this.current >= this.lines.length) {
-          this.active = false;
+          this.finish();
         } else {
           this.text    = '';
           this.textPos = 0;
@@ -835,8 +1112,18 @@ class MissionManager {
     this.listeners = [];
   }
 
-  init(saveData) {
+  init(saveData, game) {
     this.saveData = saveData;
+    this.game = game || null;
+  }
+
+  completeObjective(missionId, objectiveId) {
+    const mission = MISSIONS[missionId];
+    if (!mission) return;
+    if (this.saveData.missions.completed.includes(missionId)) return;
+    const obj = mission.objectives?.find(o => o.id === objectiveId);
+    if (obj) obj._done = true;
+    this.checkAllObjectives(missionId);
   }
 
   trigger(missionId) {
@@ -848,10 +1135,14 @@ class MissionManager {
   }
 
   complete(missionId, rewards) {
+    if (this.saveData.missions.completed.includes(missionId)) return;
     this.saveData.missions.completed.push(missionId);
     this.saveData.missions.active = this.saveData.missions.active.filter(m => m !== missionId);
     if (rewards?.reputation) this.saveData.player.reputation += rewards.reputation;
     if (rewards?.unlocks) rewards.unlocks.forEach(u => this.trigger(u));
+    const title = MISSIONS[missionId]?.title || missionId;
+    this.game?.showMessage(`Mission accomplie : ${title}`);
+    this.game?.save();
   }
 
   checkItemCollected(itemId) {
