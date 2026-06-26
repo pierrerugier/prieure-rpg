@@ -38,7 +38,8 @@ const ok = (label, cond) => checks.push([label, !!cond]);
 
 ok('jeu démarré', game.running);
 ok('monde construit (grille de collision)', game.tilemap.cols > 0 && game.tilemap.solid);
-ok('8 PNJ humains', game.npcMgr.npcs.filter(n => n.kind === 'npc').length === 8);
+ok('9 PNJ humains (8 amis + greenkeeper)', game.npcMgr.npcs.filter(n => n.kind === 'npc').length === 9);
+ok('greenkeeper sur le golf', game.npcMgr.npcs.some(n => n.id === 'greenkeeper'));
 ok('chiens présents', game.npcMgr.npcs.filter(n => n.kind === 'dog').length >= 1);
 ok('passants présents', game.npcMgr.npcs.filter(n => n.kind === 'passant').length >= 1);
 ok('spawn sur case marchable', !game.tilemap.isSolidPx(game.player.x, game.player.y));

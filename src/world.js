@@ -30,8 +30,9 @@ const P = {
   flower1:'#f04040', flower2:'#f0d040', flower3:'#f8f8f8',
 };
 
-// ── DIMENSIONS DU MONDE (hameau jouable) ───────────────────────
-const W = 1600, H = 1200;
+// ── DIMENSIONS DU MONDE ─────────────────────────────────────────
+// Hameau en haut-gauche, golf qui s'étale vers le sud-est (cf. captures aériennes)
+const W = 2400, H = 1900;
 
 // ── GÉOMÉTRIE (coordonnées monde, en px) ───────────────────────
 // Clairière prairie du hameau (forme organique)
@@ -47,8 +48,12 @@ const ROADS = [
   { pts:[[560,120],[556,300],[552,520],[548,740],[544,960],[540,1060]], w:46, kind:'road' },
   // Allée des Hameaux (ouest)
   { pts:[[270,320],[262,520],[256,720],[252,900],[300,980],[470,1000]], w:34, kind:'path' },
-  // Allée de la Lisière (diagonale NE → golf)
+  // Allée de la Lisière (diagonale NE) puis descente vers le golf
   { pts:[[600,840],[720,760],[860,660],[1010,560],[1160,470],[1320,400],[1480,360]], w:48, kind:'road' },
+  // Descente Lisière → golf (route d'accès, traverse la lisière forestière)
+  { pts:[[1480,360],[1540,480],[1560,640],[1540,820],[1500,1000],[1470,1180],[1470,1340]], w:34, kind:'road' },
+  // Accès club-house ↔ D130 (en bas)
+  { pts:[[1470,1340],[1500,1480],[1560,1620],[1640,1740],[1740,1820]], w:30, kind:'road' },
   // Connecteurs
   { pts:[[556,360],[470,372],[360,378],[280,372]], w:26, kind:'path' },
   { pts:[[700,300],[640,290],[580,300]], w:24, kind:'path' },
@@ -58,13 +63,30 @@ const ROADS = [
 // Place du Prieuré (cul-de-sac gravier) — ellipse
 const GRAVEL = { cx:540, cy:920, rx:130, ry:95 };
 
-// Golf : fairway qui entre par la lisière (évoque l'aérien) + green
-const FAIRWAY = { pts:[[1340,400],[1440,388],[1540,392],[1600,400]], w:120 };
-const GREEN   = { cx:1560, cy:396, rx:70, ry:48 };
-const BUNKERS = [ [1470,340,30,16,-0.2], [1520,450,24,14,0.25] ];
-
-// Étang (eau, bloquant)
-const POND = { cx:1180, cy:980, rx:120, ry:80 };
+// ── GOLF DU PRIEURÉ (sud-est) — d'après l'aérien fourni ──
+const GOLF = {
+  // Grande étendue de rough (gazon), forme organique
+  rough: [
+    [1280,860],[1640,760],[2000,740],[2280,840],[2360,1120],[2360,1560],
+    [2200,1820],[1860,1880],[1520,1860],[1320,1740],[1240,1480],[1240,1120],[1280,860],
+  ],
+  // Fairways serpentant (évoquent les trous du parcours)
+  fairways: [
+    { pts:[[1360,980],[1560,940],[1780,960],[1980,1020],[2120,1140]], w:60 },
+    { pts:[[2120,1140],[2190,1320],[2120,1500],[1980,1620]], w:54 },
+    { pts:[[1340,1300],[1560,1340],[1780,1380],[1960,1460]], w:54 },
+    { pts:[[1340,1620],[1560,1660],[1800,1680],[2020,1720]], w:52 },
+  ],
+  greens:  [ {cx:2120,cy:1140,rx:46,ry:34}, {cx:1980,cy:1620,rx:44,ry:32},
+             {cx:1960,cy:1460,rx:42,ry:30}, {cx:2020,cy:1720,rx:42,ry:30} ],
+  bunkers: [ [1700,1000,28,16,0], [2070,1250,24,14,0.3], [1820,1420,26,15,-0.2], [1900,1700,22,13,0.1] ],
+  abbey:   { x:1360, y:1360, w:228, h:150 },   // club-house (abbaye médiévale)
+  pool:    { x:1640, y:1255, w:148, h:86 },
+  tennis:  { x:1300, y:1560, w:96, h:128 },
+  parking: { x:1772, y:1560, w:230, h:150 },
+  practice:{ x:1360, y:1185, w:216, h:66 },
+  d130:    { pts:[[1160,1858],[1700,1882],[2200,1842],[2392,1820]], w:42 },
+};
 
 // Maisons : {id,x,y,w,h,type,label,color}
 const HOUSES = [
@@ -146,6 +168,14 @@ const PASSANTS = [
            {speaker:'Le facteur', text:"Bonne journée, petit !"} ] },
 ];
 
+// PNJ du golf
+const GOLF_NPCS = [
+  { id:'greenkeeper', kind:'npc', name:'Marcel', x:1470, y:1290,
+    look:{ hair:'#9a9a9a', skin:'#d8b48a', shirt:'#2e6a3a', pants:'#3a3a2a', shoes:'#2a2a1a' },
+    idle:[ {speaker:'Marcel', text:"Pas de vélo sur les greens, petit. C'est sacré, un green."},
+           {speaker:'Marcel', text:"Ce golf, c'est le plus beau des Yvelines. Respecte-le."} ] },
+];
+
 const SPAWN_ANCHOR = front('jungers', 0, -6);  // place du Prieuré, devant chez Jungers
 const BIKE_ANCHOR  = { x:560, y:760 };          // posé au bord de l'allée des Fougères
 
@@ -209,6 +239,9 @@ function inEllipse(e, x, y) {
   const dx = (x - e.cx) / e.rx, dy = (y - e.cy) / e.ry;
   return dx*dx + dy*dy <= 1;
 }
+function inRect(r, x, y, m = 0) {
+  return x >= r.x - m && x <= r.x + r.w + m && y >= r.y - m && y <= r.y + r.h + m;
+}
 function inHouseBlock(h, x, y) {
   const m = 4; // on ne bloque que le bâtiment (la terrasse/jardin restent praticables)
   return x >= h.x - m && x <= h.x + h.w + m &&
@@ -219,16 +252,20 @@ function walkableAt(x, y) {
   if (x < 4 || y < 4 || x > W - 4 || y > H - 4) return false;
   // Bloqueurs (priorité)
   for (const h of HOUSES)       if (inHouseBlock(h, x, y)) return false;
-  if (inEllipse(POND, x, y))    return false;
   for (const t of DECO_TREES)   if (Math.hypot(x - t[0], y - t[1]) < t[2] * 0.8) return false;
   for (const l of LAMPS)        if (Math.hypot(x - l.x, y - l.y) < 5) return false;
   for (const c of CARS)         if (x >= c.x - 2 && x <= c.x + 16 && y >= c.y - 2 && y <= c.y + 28) return false;
-  // Surfaces marchables
+  // Golf : bâtiments bloquants
+  if (inRect(GOLF.abbey, x, y)) return false;
+  if (inRect(GOLF.pool, x, y))  return false;   // bassin (eau)
+  // Surfaces marchables — hameau
   if (inPoly(PRAIRIE, x, y))    return true;
   if (inEllipse(GRAVEL, x, y))  return true;
   for (const r of ROADS)        if (nearPolyline(r, x, y)) return true;
-  if (nearPolyline(FAIRWAY, x, y)) return true;
-  if (inEllipse(GREEN, x, y))   return true;
+  // Surfaces marchables — golf
+  if (inPoly(GOLF.rough, x, y)) return true;
+  if (inRect(GOLF.parking, x, y) || inRect(GOLF.practice, x, y) || inRect(GOLF.tennis, x, y)) return true;
+  if (nearPolyline(GOLF.d130, x, y)) return true;
   return false; // sinon = forêt (bloquée)
 }
 
@@ -416,13 +453,94 @@ function scatterMeadow(){
     }
   }
 }
+// ── Bâtiments & surfaces du golf ──
+function drawAbbey(a){
+  const { x, y, w, h } = a;
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x + 5, y + h - 2, w, 9);
+  fr(x, y + h * 0.42, w, h * 0.58, '#c4a260', '#8a6030', 2);          // murs pierre
+  fr(x - 4, y, w + 8, h * 0.46, '#6a2818', '#4a1c08', 2);            // toit tuiles
+  g.fillStyle = '#822e14';
+  for (let i = 0; i < w / 12; i++) g.fillRect(x - 2 + i * 12, y + 2, 6, h * 0.42);
+  // arches romanes
+  const n = Math.max(3, Math.floor(w / 28));
+  for (let i = 0; i < n; i++) {
+    const ax = x + 10 + i * ((w - 16) / n);
+    fr(ax, y + h * 0.52, (w - 16) / n - 6, h * 0.4, '#caddf2');
+    g.fillStyle = '#3a1c08'; g.fillRect(ax - 2, y + h * 0.52, 2, h * 0.4);
+  }
+  // clocher
+  fr(x + w - 30, y - 34, 26, 38, '#c4a260', '#8a6030', 1.5);
+  fr(x + w - 32, y - 38, 30, 8, '#6a2818', null);
+  // jardin du cloître
+  fr(x + 6, y + h + 2, w - 12, 14, P.hg, P.hh, 1);
+}
+function drawPool(p){
+  const { x, y, w, h } = p;
+  fr(x - 12, y - 10, w + 24, h + 24, '#cfc9b4', null, 0, 4);          // plage/deck
+  fr(x, y, w, h, P.wa, P.wal, 2, 3);
+  fr(x + 2, y + 2, w - 4, h - 4, P.wal, null, 0, 2);
+  fr(x + 4, y + 4, w * 0.5, 5, 'rgba(255,255,255,0.25)');
+  g.setLineDash([6, 5]); g.strokeStyle = '#cfeaff'; g.lineWidth = 1.5;
+  for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(x + 2, y + i * h / 4); g.lineTo(x + w - 2, y + i * h / 4); g.stroke(); }
+  g.setLineDash([]);
+  for (let i = 0; i < 5; i++) fr(x + 6 + i * ((w - 12) / 5), y + h + 4, 8, 5, '#e8e0c4', '#b0a884', 0.5);
+}
+function drawTennis(t){
+  const { x, y, w, h } = t;
+  fr(x, y, w, h, '#bf6f38', '#7a3a18', 2);
+  g.strokeStyle = '#f0f0f0'; g.lineWidth = 1.5; g.strokeRect(x + 5, y + 5, w - 10, h - 10);
+  g.beginPath(); g.moveTo(x + 3, y + h / 2); g.lineTo(x + w - 3, y + h / 2); g.stroke();
+  g.beginPath(); g.moveTo(x + w / 2, y + 5); g.lineTo(x + w / 2, y + h - 5); g.stroke();
+}
+function drawParking(p){
+  const { x, y, w, h } = p;
+  fr(x, y, w, h, '#9a948a', '#6e685e', 2);
+  g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 1;
+  for (let i = 1; i < 8; i++) { g.beginPath(); g.moveTo(x + i * w / 8, y + 4); g.lineTo(x + i * w / 8, y + h - 4); g.stroke(); }
+  const cols = ['#b83030', '#2c50a0', '#d8d8d8', '#3a3a3a', '#2e8050'];
+  for (let i = 0; i < 5; i++) drawParkedCar(x + 10 + i * ((w - 24) / 5), y + 12, cols[i % cols.length]);
+}
+function drawPractice(p){
+  const { x, y, w, h } = p;
+  for (let i = 0; i < 10; i++) { g.fillStyle = i % 2 ? P.fw : P.fwl; g.fillRect(x + i * w / 10, y, Math.ceil(w / 10), h); }
+  fr(x, y, w, h, null, P.rgd, 2);
+}
+function paintGolfGround(){
+  poly(GOLF.rough, P.rg, P.fe, 3);
+  el(1800, 1320, 320, 280, P.rgd);
+  el(1500, 1000, 220, 160, P.rgd);
+  GOLF.fairways.forEach(drawFairway);
+  GOLF.greens.forEach(drawGreen);
+  GOLF.bunkers.forEach(drawBunker);
+}
+function paintGolfStructures(){
+  // D130 (tarmac) en bas
+  stroke(GOLF.d130.pts, '#4e4e4e', GOLF.d130.w + 6);
+  stroke(GOLF.d130.pts, '#6e6e6e', GOLF.d130.w);
+  g.setLineDash([20, 14]); g.strokeStyle = '#d8c870'; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(GOLF.d130.pts[0][0], GOLF.d130.pts[0][1]);
+  for (let i = 1; i < GOLF.d130.pts.length; i++) g.lineTo(GOLF.d130.pts[i][0], GOLF.d130.pts[i][1]);
+  g.stroke(); g.setLineDash([]);
+  drawPractice(GOLF.practice);
+  drawAbbey(GOLF.abbey);
+  drawPool(GOLF.pool);
+  drawTennis(GOLF.tennis);
+  drawParking(GOLF.parking);
+}
+
+function inAnyGolfStruct(x, y){
+  return inRect(GOLF.parking, x, y, 6) || inRect(GOLF.practice, x, y, 4) ||
+         inRect(GOLF.tennis, x, y, 6) || inRect(GOLF.abbey, x, y, 10) ||
+         inRect(GOLF.pool, x, y, 14);
+}
 function forestBorder(){
-  // Bande d'arbres tout autour de la clairière (donne le cadre Pokémon)
   seed(4242);
-  for (let i = 0; i < 1100; i++) {
+  for (let i = 0; i < 3000; i++) {
     const x = rng()*W, y = rng()*H;
     if (inPoly(PRAIRIE, x, y)) continue;
-    if (nearPolyline(FAIRWAY, x, y) || inEllipse(GREEN, x, y)) continue;
+    if (inPoly(GOLF.rough, x, y)) continue;
+    if (inAnyGolfStruct(x, y)) continue;
+    if (nearPolyline(GOLF.d130, x, y)) continue;
     let onRoad = false; for (const r of ROADS) if (nearPolyline(r, x, y)) { onRoad = true; break; }
     if (onRoad) continue;
     drawTree(x, y, 9 + rng()*8);
@@ -434,27 +552,23 @@ function paintWorld(ctx) {
   g = ctx;
   // 1. Forêt de fond
   g.fillStyle = P.fm; g.fillRect(0, 0, W, H);
-  seed(99); for (let i = 0; i < 220; i++) { const x=rng()*W,y=rng()*H; el(x,y,30+rng()*70,18+rng()*40, rng()<0.5?P.fd:P.fl); }
-  // 2. Clairière prairie + nuances douces (variété macro)
+  seed(99); for (let i = 0; i < 420; i++) { const x=rng()*W,y=rng()*H; el(x,y,30+rng()*70,18+rng()*40, rng()<0.5?P.fd:P.fl); }
+  // 2. Golf (sol : rough, fairways, greens, bunkers)
+  paintGolfGround();
+  // 3. Clairière prairie du hameau + nuances
   poly(PRAIRIE, P.pr, P.fe, 3);
   el(560, 480, 360, 300, P.prl);
   el(820, 760, 280, 200, P.prl);
   el(380, 380, 150, 110, P.law);
-  el(700, 980, 160, 100, P.law);
   el(1000, 900, 170, 120, P.prd);
   scatterMeadow();
-  // 3. Golf (entre par la lisière)
-  drawFairway(FAIRWAY); drawGreen(GREEN); BUNKERS.forEach(drawBunker);
   // 4. Place du Prieuré (gravier)
   el(GRAVEL.cx, GRAVEL.cy, GRAVEL.rx, GRAVEL.ry, P.gr, P.grd, 2);
   el(GRAVEL.cx, GRAVEL.cy, GRAVEL.rx-10, GRAVEL.ry-10, P.gr);
-  // 5. Routes
+  // 5. Routes / allées
   ROADS.forEach(drawRoad);
-  // 6. Étang
-  el(POND.cx, POND.cy, POND.rx+6, POND.ry+6, P.rgd);
-  el(POND.cx, POND.cy, POND.rx, POND.ry, P.wa);
-  el(POND.cx, POND.cy, POND.rx-8, POND.ry-8, P.wal);
-  el(POND.cx-30, POND.cy-20, POND.rx*0.4, POND.ry*0.3, P.was+'66');
+  // 6. Structures du golf (abbaye, piscine, tennis, parking, practice, D130)
+  paintGolfStructures();
   // 7. Maisons (du nord au sud) — villas forêt à toit plat, lisière à toit pentu
   HOUSES.slice().sort((a,b)=>a.y-b.y).forEach((h,i)=>{ h._flowers = (i % 3 === 1); drawHouse(h, h.type==='manor'); });
   // 7b. Voitures garées devant + lampadaires des allées
@@ -487,9 +601,9 @@ export function buildWorld(makeCanvas) {
     label: 'Hameau du Prieuré',
     spawn: snapWalkable(grid, SPAWN_ANCHOR.x, SPAWN_ANCHOR.y),
     bike:  snapWalkable(grid, BIKE_ANCHOR.x, BIKE_ANCHOR.y),
-    npcs:  [...NPC_ANCHORS, ...DOGS, ...PASSANTS]
+    npcs:  [...NPC_ANCHORS, ...DOGS, ...PASSANTS, ...GOLF_NPCS]
              .map(n => ({ ...n, ...snapWalkable(grid, n.x, n.y) })),
-    golf:  { x: 1460, y: 396 },   // sortie est (golf, à venir)
+    golf:  { x: 1500, y: 1300 },
   };
   // Le rendu n'est possible qu'en navigateur (Canvas réel)
   if (makeCanvas) {

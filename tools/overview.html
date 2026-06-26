@@ -1,0 +1,17 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#0a0a14;}canvas{image-rendering:pixelated;display:block;}
+</style></head><body>
+<canvas id="c"></canvas>
+<script type="module">
+import { buildWorld } from '../src/world.js';
+const mk = (w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
+const world = buildWorld(mk);
+const c = document.getElementById('c'), x = c.getContext('2d');
+const scale = 980 / world.width;
+c.width = Math.round(world.width*scale); c.height = Math.round(world.height*scale);
+x.imageSmoothingEnabled = false;
+x.drawImage(world.ground, 0,0, c.width, c.height);
+// marqueur spawn + golf
+x.fillStyle='#ff2020'; x.fillRect(world.spawn.x*scale-3, world.spawn.y*scale-3,6,6);
+window.__ready = true;
+</script></body></html>
