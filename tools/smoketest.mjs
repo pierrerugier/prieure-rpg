@@ -38,8 +38,7 @@ const ok = (label, cond) => checks.push([label, !!cond]);
 
 ok('jeu démarré', game.running);
 ok('monde construit (grille de collision)', game.tilemap.cols > 0 && game.tilemap.solid);
-ok('9 PNJ humains (8 amis + greenkeeper)', game.npcMgr.npcs.filter(n => n.kind === 'npc').length === 9);
-ok('greenkeeper sur le golf', game.npcMgr.npcs.some(n => n.id === 'greenkeeper'));
+ok('8 amis présents', game.npcMgr.npcs.filter(n => n.kind === 'npc' && n.id !== 'greenkeeper').length === 8);
 ok('chiens présents', game.npcMgr.npcs.filter(n => n.kind === 'dog').length >= 1);
 ok('passants présents', game.npcMgr.npcs.filter(n => n.kind === 'passant').length >= 1);
 ok('spawn sur case marchable', !game.tilemap.isSolidPx(game.player.x, game.player.y));
@@ -65,23 +64,15 @@ for (const d of ['right','left','down','up']) {
 }
 ok('le joueur se déplace', moved);
 
-// Vitesse vélo > marche : on court dans le rough du golf (grande zone ouverte)
-const golf = game.tilemap.golf;          // centroïde du golf [x,y] ou {x,y}
-const gx = Array.isArray(golf) ? golf[0] : golf.x;
-const gy = Array.isArray(golf) ? golf[1] : golf.y;
-function openDirAt(px,py){
-  for (const [k,dx,dy] of [['down',0,16],['right',16,0],['up',0,-16],['left',-16,0]])
-    if (!game.tilemap.isSolidPx(px+dx, py+dy)) return k;
-  return 'down';
+// Vitesse vélo > marche : meilleure distance sur 4 directions depuis le spawn
+function runDir(flag, key){
+  game.player.x=x0; game.player.y=y0; game.player.ownsBike=true; game.player.hasBike=flag;
+  game.input.keys={}; game.input.keys[key]=true;
+  let d=0; for(let i=0;i<8;i++){ const px=game.player.x,py=game.player.y; game.update(0.05); d+=Math.hypot(game.player.x-px,game.player.y-py);}
+  game.input.keys={}; return d;
 }
-const DIR = openDirAt(gx, gy);
-function dist(speedFlag){
-  game.player.x=gx; game.player.y=gy; game.player.ownsBike=true; game.player.hasBike=speedFlag;
-  game.input.keys[DIR]=true;
-  let d=0; for(let i=0;i<6;i++){ const px=game.player.x,py=game.player.y; game.update(0.05); d+=Math.hypot(game.player.x-px,game.player.y-py);}
-  game.input.keys[DIR]=false; return d;
-}
-const dWalk=dist(false), dBike=dist(true);
+function bestDist(flag){ return Math.max(...['down','right','up','left'].map(k=>runDir(flag,k))); }
+const dWalk=bestDist(false), dBike=bestDist(true);
 game.player.x=x0; game.player.y=y0; game.player.ownsBike=false; game.player.hasBike=false;
 ok('le vélo va plus vite que la marche', dBike > dWalk * 1.4);
 game.player.hasBike=false; game.player.x=x0; game.player.y=y0;

@@ -6,8 +6,9 @@ import json, math, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 raw = json.load(open(os.path.join(ROOT, 'tools', 'osm_raw.json')))
 
-# ── Recadrage sur le cœur hameau (Le Prieuré) + golf (emprise mesurée) ──
-CORE = dict(latmin=49.0435, latmax=49.0600, lonmin=1.7775, lonmax=1.8032)
+# ── Recadrage SERRÉ sur le hameau Le Prieuré (cluster dense de ~99 maisons) ──
+# Centre du cluster : 49.0572, 1.7991. ~660 m de côté -> échelle jouable.
+CORE = dict(latmin=49.0542, latmax=49.0602, lonmin=1.7947, lonmax=1.8035)
 def in_core(p):
     return CORE['latmin'] <= p['lat'] <= CORE['latmax'] and CORE['lonmin'] <= p['lon'] <= CORE['lonmax']
 els = [e for e in raw['elements']
@@ -49,9 +50,9 @@ MAP = {'w': W, 'h': H, 'scale': round(scale, 3),
        'fairways': [], 'water': [], 'pools': [], 'pitches': [], 'parking': [],
        'buildings': [], 'roads': [], 'hedges': [], 'streets': {}}
 
-# largeur visuelle des routes par type (px)
-RW = {'secondary': 11, 'tertiary': 10, 'residential': 8, 'unclassified': 7,
-      'service': 6, 'track': 5, 'path': 4, 'footway': 3, 'cycleway': 4}
+# largeur visuelle des routes (px) — élargies pour être praticables (style Pokémon)
+RW = {'secondary': 34, 'tertiary': 30, 'residential': 28, 'unclassified': 26,
+      'service': 24, 'track': 22, 'path': 18, 'footway': 16, 'cycleway': 18}
 
 for e in els:
     if e.get('type') != 'way' or 'geometry' not in e:

@@ -150,7 +150,7 @@ function drawGreen(poly) {
   fillPoly([[c[0], c[1]-16],[c[0]+9, c[1]-12],[c[0], c[1]-8]], P.flag);
 }
 function drawBuilding(poly) {
-  const big = area(poly) > 760;            // grand = manoir (lisière), petit = villa
+  const big = area(poly) > 11000;          // seulement les très grandes empreintes = manoir (ardoise)
   const roof = big ? P.roofM : P.roofW, hi = big ? P.roofMl : P.roofWl;
   // ombre
   g.save(); g.translate(2, 3); fillPoly(poly, 'rgba(0,0,0,0.28)'); g.restore();
@@ -233,38 +233,49 @@ const LOOKS = {
   passantB:{ hair:'#cfcfcf', skin:'#dcbc94', shirt:'#9a7a6a', pants:'#4a4a4a', shoes:'#2a2a2a' },
   marcel:  { hair:'#9a9a9a', skin:'#d8b48a', shirt:'#2e6a3a', pants:'#3a3a2a', shoes:'#2a2a1a' },
 };
-// Point de référence d'une rue (centroïde réel), avec décalage
+// Centroïde d'une rue (pour spawn/vélo)
 function street(name, dx = 0, dy = 0) {
   const c = STREETS[name];
   return c ? { x: c[0] + dx, y: c[1] + dy } : { x: W/2 + dx, y: H/2 + dy };
 }
+// Point DISTINCT le long d'une rue (frac 0..1), filtré aux limites + trié (spread stable)
+function streetPt(name, frac) {
+  let ps = ((MAP.streets && MAP.streets[name]) || [])
+    .filter(p => p[0] > 40 && p[0] < W - 40 && p[1] > 40 && p[1] < H - 40);
+  if (!ps.length) return { x: W/2, y: H/2 };
+  ps = ps.slice().sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]));
+  const p = ps[Math.floor(frac * (ps.length - 1))];
+  return { x: p[0], y: p[1] };
+}
 function npcDefs() {
   const F = 'Allée des Fougères', L = 'Allée de la Lisière', Hh = 'Allée des Hameaux', Hp = 'Hameau du Prieuré';
+  const hasGolf = MAP.greens.length > 0;
   const g0 = MAP.golf[0] ? centroid(MAP.golf[0]) : [W*0.7, H*0.7];
-  return [
-    { id:'victor',  ...street(F, -10, -30), look:LOOKS.victor,  idle:'victor_greet' },
-    { id:'charles', ...street(F,  18, -30), look:LOOKS.charles, idle:'charles_greet' },
-    { id:'margot',  ...street(F,   0,  10), look:LOOKS.margot,  idle:'margot_greet', wander:true },
-    { id:'antoine', ...street(F,  34, -10), look:LOOKS.antoine, idle:'antoine_greet' },
-    { id:'oscar',   ...street(L, -10, -20), look:LOOKS.oscar,   idle:'oscar_greet' },
-    { id:'louis',   ...street(L,  20,  30), look:LOOKS.louis,   idle:'louis_greet' },
-    { id:'kupi',    ...street(Hh,  0, -10), look:LOOKS.kupi,    idle:'kupi_greet' },
-    { id:'paul',    ...street(Hp,  0,   0), look:LOOKS.paul,    idle:'paul_greet' },
-    { id:'greenkeeper', kind:'npc', name:'Marcel', x:g0[0], y:g0[1], look:LOOKS.marcel,
-      idle:[ {speaker:'Marcel', text:"Pas de vélo sur les greens, petit. C'est sacré."},
-             {speaker:'Marcel', text:"Ce golf, c'est le plus beau du coin. Respecte-le."} ] },
+  const defs = [
+    { id:'victor',  ...streetPt(F, 0.20), look:LOOKS.victor,  idle:'victor_greet' },
+    { id:'charles', ...streetPt(F, 0.30), look:LOOKS.charles, idle:'charles_greet' },
+    { id:'margot',  ...streetPt(F, 0.40), look:LOOKS.margot,  idle:'margot_greet', wander:true },
+    { id:'antoine', ...streetPt(F, 0.52), look:LOOKS.antoine, idle:'antoine_greet' },
+    { id:'oscar',   ...streetPt(L, 0.25), look:LOOKS.oscar,   idle:'oscar_greet' },
+    { id:'louis',   ...streetPt(L, 0.6),  look:LOOKS.louis,   idle:'louis_greet' },
+    { id:'kupi',    ...streetPt(Hh, 0.35),look:LOOKS.kupi,    idle:'kupi_greet' },
+    { id:'paul',    ...streetPt(Hp, 0.5), look:LOOKS.paul,    idle:'paul_greet' },
     // Chiens
-    { id:'dog1', kind:'dog', name:'le chien', ...street(F, 40, 20), color:'#8a6038', wander:true, range:36 },
-    { id:'dog2', kind:'dog', name:'le chien', ...street(Hh, 30, 30), color:'#2a2a2a', wander:true, range:36 },
-    { id:'dog3', kind:'dog', name:'le chien', ...street(L, -30, 40), color:'#e6ddcb', wander:true, range:36 },
+    { id:'dog1', kind:'dog', name:'le chien', ...streetPt(F, 0.70), color:'#8a6038', wander:true, range:40 },
+    { id:'dog2', kind:'dog', name:'le chien', ...streetPt(Hh, 0.65),color:'#2a2a2a', wander:true, range:40 },
+    { id:'dog3', kind:'dog', name:'le chien', ...streetPt(L, 0.85), color:'#e6ddcb', wander:true, range:40 },
     // Passants (petits vieux)
-    { id:'passant1', kind:'passant', name:'Mme Lévêque', ...street(F, 0, 60), look:LOOKS.passantA, wander:true, range:60,
+    { id:'passant1', kind:'passant', name:'Mme Lévêque', ...streetPt(F, 0.85), look:LOOKS.passantA, wander:true, range:70,
       idle:[ {speaker:'Mme Lévêque', text:"Ah, les jeunes ! Profitez-en, c'est le plus bel été."},
              {speaker:'Mme Lévêque', text:"Vous n'auriez pas vu mon chien ? Il file toujours vers le golf."} ] },
-    { id:'passant2', kind:'passant', name:'M. Grémont', ...street(Hh, 10, -40), look:LOOKS.passantB, wander:true, range:60,
+    { id:'passant2', kind:'passant', name:'M. Grémont', ...streetPt(Hp, 0.2), look:LOOKS.passantB, wander:true, range:70,
       idle:[ {speaker:'M. Grémont', text:"Belle journée pour marcher, n'est-ce pas ?"},
              {speaker:'M. Grémont', text:"De mon temps, on rentrait à la nuit tombée."} ] },
   ];
+  if (hasGolf) defs.push({ id:'greenkeeper', kind:'npc', name:'Marcel', x:g0[0], y:g0[1], look:LOOKS.marcel,
+    idle:[ {speaker:'Marcel', text:"Pas de vélo sur les greens, petit. C'est sacré."},
+           {speaker:'Marcel', text:"Ce golf, c'est le plus beau du coin. Respecte-le."} ] });
+  return defs;
 }
 
 // ── API ────────────────────────────────────────────────────────
@@ -276,11 +287,29 @@ export function buildWorld(makeCanvas) {
   let bike = findOpenSpot(grid, ...Object.values(street('Allée des Hameaux')));
   if (Math.hypot(bike.x - spawn.x, bike.y - spawn.y) < 80)
     bike = findOpenSpot(grid, ...Object.values(street('Hameau du Prieuré')));
+  // Placement unique : aucune entité ne partage une case
+  const occupied = new Set();
+  const key = (x, y) => Math.floor(x/TILE) + ',' + Math.floor(y/TILE);
+  occupied.add(key(spawn.x, spawn.y)); occupied.add(key(bike.x, bike.y));
+  function placeUnique(x, y) {
+    const s = snapWalkable(grid, x, y);
+    const c0 = Math.floor(s.x/TILE), r0 = Math.floor(s.y/TILE);
+    for (let rad = 0; rad < 22; rad++)
+      for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) {
+        if (Math.max(Math.abs(dr), Math.abs(dc)) !== rad) continue;
+        const c = c0+dc, r = r0+dr;
+        if (c<0||r<0||c>=grid.cols||r>=grid.rows||grid.solid[r*grid.cols+c]) continue;
+        const k = c + ',' + r;
+        if (occupied.has(k)) continue;
+        occupied.add(k); return { x: c*TILE+TILE/2, y: r*TILE+TILE/2 };
+      }
+    return s;
+  }
   const meta = {
     width: W, height: H, cols: grid.cols, rows: grid.rows, solid: grid.solid,
     label: 'Le Prieuré',
     spawn, bike,
-    npcs: npcDefs().map(n => ({ ...n, ...snapWalkable(grid, n.x, n.y) })),
+    npcs: npcDefs().map(n => ({ ...n, ...placeUnique(n.x, n.y) })),
     golf: MAP.golf[0] ? centroid(MAP.golf[0]) : { x: W*0.7, y: H*0.7 },
   };
   if (makeCanvas) {
