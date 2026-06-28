@@ -3,3 +3,4 @@ node_modules/
 *.log
 assets/map.png
 assets/map_debug.png
+.env

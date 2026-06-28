@@ -83,12 +83,22 @@ function fillP(pts,c){ g.beginPath();g.moveTo(pts[0][0],pts[0][1]); for(let i=1;
 function strokeP(pts,c,w){ g.lineCap='round';g.lineJoin='round';g.beginPath();g.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++)g.lineTo(pts[i][0],pts[i][1]); g.strokeStyle=c;g.lineWidth=w;g.stroke(); }
 function tree(x,y,r){ g.fillStyle=P.tree; g.beginPath();g.arc(x,y+r*0.35,r,0,7);g.fill(); g.fillStyle=P.treeTop; g.beginPath();g.arc(x,y,r*0.92,0,7);g.fill(); g.fillStyle='#6acc66'; g.beginPath();g.arc(x-r*0.25,y-r*0.25,r*0.4,0,7);g.fill(); }
 
-function paint(ctx){
+// Grille "chemin" par tile (1 = allée) pour le rendu dual-grid des tuiles
+export function pathGrid(){
+  const cols=Math.ceil(W/TILE), rows=Math.ceil(H/TILE);
+  const grid=new Uint8Array(cols*rows);
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const x=c*TILE+TILE/2,y=r*TILE+TILE/2; let p=0;
+    for(const rd of MAP.roads) if(nearRoad(rd,x,y)){p=1;break;}
+    grid[r*cols+c]=p;
+  }
+  return {grid,cols,rows};
+}
+
+// Features par-dessus le sol tuilé (PAS le fond herbe ni les allées = gérés par les tuiles)
+export function paintFeatures(ctx){
   g=ctx;
-  // 1. Forêt de fond (claire, propre) + grain
-  g.fillStyle=P.forest; g.fillRect(0,0,W,H);
-  seed(3); for(let i=0;i<700;i++){const x=rng()*W,y=rng()*H;g.fillStyle=rng()<0.5?P.forestD:P.forestL;g.beginPath();g.arc(x,y,16+rng()*30,0,7);g.fill();}
-  // 2. Golf : rough (forme réelle) + liseré
+  // Golf : rough (forme réelle)
   MAP.golf.forEach(p=>{ fillP(p,P.rough); });
   // 3. Fairways (formes réelles, vert clair)
   FAIRWAYS.forEach(p=>fillP(p,P.fairway));
@@ -105,9 +115,7 @@ function paint(ctx){
   POOL_BOX.forEach(B=>{ rrect(B.x,B.y,B.w,B.h,4,P.water,P.waterE,2); rrect(B.x+3,B.y+3,B.w-6,Math.max(2,B.h*0.4),3,P.waterL,null); });
   // 8. Terrains (tennis = terre battue)
   PITCH_BOX.forEach(B=>{ if(B.sport==='tennis'){rrect(B.x,B.y,B.w,B.h,2,P.clay,'#fff',1.5);} else rrect(B.x,B.y,B.w,B.h,3,P.fairwayL,null); });
-  // 9. Allées (propres, larges)
-  MAP.roads.forEach(r=>{ const dirt=['track','path','footway','cycleway'].includes(r.kind);
-    strokeP(r.pts, dirt?P.pathE:P.tarE, r.w+4); strokeP(r.pts, dirt?P.path:P.tar, r.w); });
+  // (Allées = rendues par les tuiles PixelLab, plus dessinées ici)
   // 10. Haies
   MAP.hedges.forEach(h=>strokeP(h,P.hedge,5));
   // 11. Bâtiments (rectangles nets + toit ; l'abbaye distincte)
@@ -193,7 +201,7 @@ export function buildWorld(makeCanvas){
     label:'Golf du Prieuré', spawn, bike,
     npcs:npcDefs().map(n=>({...n,...place(n.x,n.y)})),
     golf:MAP.golf[0]?bbox(MAP.golf[0]):{x:W/2,y:H/2} };
-  if(makeCanvas){ try{ const art=makeCanvas(W,H); const a=art.getContext('2d'); a.imageSmoothingEnabled=true; paint(a); meta.ground=art; }catch(e){ meta.ground=null; } }
+  // Le sol (tuiles PixelLab + features) est composé par le moteur (async).
   return meta;
 }
 export { W as WORLD_W, H as WORLD_H };

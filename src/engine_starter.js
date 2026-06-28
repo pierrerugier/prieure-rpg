@@ -5,7 +5,7 @@
 
 import { NPCS, MISSIONS, DIALOGUES, COLLECTIBLES, GOLF_HOLES, MAP_ZONES }
   from './data_complete.js';
-import { buildWorld } from './world.js';
+import { buildWorld, paintFeatures, pathGrid } from './world.js';
 
 // ── CONFIG ──────────────────────────────────────────────────
 const CONFIG = {
@@ -675,8 +675,49 @@ class Tilemap {
     this.bike     = world.bike;
     this.npcDefs  = world.npcs;
     this.golf     = world.golf;
-    // Sol : canvas peint (clean) ou image optionnelle
-    this.ground = world.ground || (world.groundSrc ? await this.loadGround(world.groundSrc) : null);
+    // Sol composé : tuiles PixelLab (dual-grid) + features par-dessus
+    this.ground = await this.composeGround();
+  }
+
+  // Charge le tileset PixelLab et compose le sol (herbe + allées Wang) + features
+  async composeGround() {
+    if (typeof document === 'undefined' || typeof fetch === 'undefined' || typeof Image === 'undefined') return null;
+    const W = this.widthPx, H = this.heightPx, T = CONFIG.TILE;
+    const make = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+    const ground = make(W, H);
+    const gx = ground.getContext('2d'); gx.imageSmoothingEnabled = false;
+    try {
+      const data = await (await fetch('assets/tiles/grass_path.json')).json();
+      const tiles = data.tileset.tiles;
+      // Charge les 16 images + table de correspondance par coins (upper=chemin)
+      const lut = {};
+      await Promise.all(tiles.map(t => new Promise(res => {
+        const im = new Image();
+        im.onload = () => {
+          const k = (c) => (c === 'upper' ? '1' : '0');
+          const co = t.corners;
+          lut[k(co.NW)+k(co.NE)+k(co.SW)+k(co.SE)] = im;
+          res();
+        };
+        im.onerror = res;
+        const b = t.image.base64;
+        im.src = b.startsWith('data:') ? b : 'data:image/png;base64,' + b;
+      })));
+      // Grille chemin + rendu dual-grid (la tuile dépend des 4 cellules autour du coin)
+      const { grid, cols, rows } = pathGrid();
+      const cell = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows ? 0 : grid[r * cols + c]);
+      for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+        const key = '' + cell(i-1, j-1) + cell(i, j-1) + cell(i-1, j) + cell(i, j);
+        const im = lut[key] || lut['0000'];
+        if (im) gx.drawImage(im, i*T - T/2, j*T - T/2, T, T);
+      }
+    } catch (e) {
+      gx.fillStyle = '#3c8a44'; gx.fillRect(0, 0, W, H);   // repli herbe si tileset indisponible
+    }
+    // Features (golf, greens, bunkers, eau, bâtiments, arbres) par-dessus
+    gx.imageSmoothingEnabled = true;
+    paintFeatures(gx);
+    return ground;
   }
 
   loadGround(src) {
