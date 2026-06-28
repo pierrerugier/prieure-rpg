@@ -332,7 +332,7 @@ class Game {
 
   // Charge les sprites PixelLab : par direction (down/up/left) + repli sprite unique
   async loadSprites() {
-    const ids = ['pierre','victor','charles','margot','oscar','antoine','louis','paul','kupi'];
+    const ids = ['pierre','victor','charles','margot','oscar','antoine','louis','paul','kupi','dog1'];
     const out = {};
     if (typeof Image === 'undefined') return out;
     const load = src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
@@ -965,7 +965,10 @@ class NPC {
 
   render(ctx, camX, camY) {
     const sx = Math.round(this.x - camX), sy = Math.round(this.y - camY);
-    if (this.kind === 'dog') drawDog(ctx, sx, sy, this.dir, this.frame, this.color);
+    if (this.kind === 'dog') {
+      if (this.sprite) drawDirSprite(ctx, this.sprite, sx, sy, this.dir, 30, this.frame);     // sprite chien
+      else drawDog(ctx, sx, sy, this.dir, this.frame, this.color);                            // fallback code-art
+    }
     else if (this.sprite) drawDirSprite(ctx, this.sprite, sx, sy, this.dir, 44, this.frame);  // bob léger (respiration/marche)
     else drawCharacter(ctx, sx, sy, this.dir, this.frame, this.look, false);
   }
