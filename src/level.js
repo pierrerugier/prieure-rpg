@@ -107,8 +107,18 @@ treeLine(2,2,2,ROWS-3,1); treeLine(COLS-3,2,COLS-3,ROWS-3,1);
 treeLine(60,8,60,46);                              // sépare hameau / golf
 [[100,40],[112,52],[30,100],[128,86],[50,124],[96,108],[120,120]].forEach(([c,r])=>{obj('oak',c,r);obj('pine',c+1,r+1);});
 
-// ── 7. Déco au sol : fleurs & touffes éparses sur l'herbe (richesse) ──
-for (let i=0;i<420;i++){ const c=6+Math.floor(R()*(COLS-12)), r=6+Math.floor(R()*(ROWS-12)); if(T[ti(c,r)]!=='g') continue; const v=R(); if(v<0.5) deco('bush',c,r); else deco(['flower_red','flower_yellow','flower_pink'][i%3],c,r); }
+// ── 7. Déco au sol : semis LÉGER et varié (touffes, fleurs sauvages, fougères près des bois) ──
+for (let i=0;i<320;i++){
+  const c=6+Math.floor(R()*(COLS-12)), r=6+Math.floor(R()*(ROWS-12));
+  if(T[ti(c,r)]!=='g') continue;                         // herbe seulement (pas fairway/sable/gravier)
+  const nearForest = T[ti(Math.max(0,c-2),r)]==='F'||T[ti(Math.min(COLS-1,c+2),r)]==='F'||
+                     T[ti(c,Math.max(0,r-2))]==='F'||T[ti(c,Math.min(ROWS-1,r+2))]==='F';
+  const v=R();
+  if(nearForest && v<0.65)      deco('fern',c,r);          // sous-bois
+  else if(v<0.42)               deco('tuft',c,r);          // touffes d'herbe
+  else if(v<0.70)               deco('wildflowers',c,r);   // fleurs sauvages
+  else                          deco(['flower_red','flower_yellow','flower_pink'][i%3],c,r);
+}
 
 // ── Collision : eau/forêt + objets solides ──
 const SOLID = new Uint8Array(COLS*ROWS);

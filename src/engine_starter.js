@@ -861,7 +861,8 @@ class Tilemap {
       const SZ = { abbey:[230,156], manor:[120,96], pine:[34,40], oak:[34,36], tree_pine2:[40,46],
                    tree_oak2:[42,42], hedge:[18,18], stonewall:[18,16], flag:[18,26], lamp:[16,30],
                    car:[30,20], bench:[26,18], rock:[24,18], bush:[16,13],
-                   flower_red:[13,11], flower_yellow:[13,11], flower_pink:[13,11] };
+                   flower_red:[13,11], flower_yellow:[13,11], flower_pink:[13,11],
+                   tuft:[15,12], wildflowers:[15,13], fern:[16,15] };
       // 3a. Déco au sol (petite, non solide) sous les objets
       for (const d of (lv.deco || [])) {
         const im = imgs[d.t]; if (!im) continue;
