@@ -272,6 +272,7 @@ class Game {
   constructor() {
     this.canvas = document.getElementById('game');
     this.ctx    = this.canvas.getContext('2d');
+    this.fitViewport();                       // calcule SCREEN_W/H selon l'écran (portrait mobile / paysage desktop)
     this.canvas.width  = CONFIG.SCREEN_W * CONFIG.SCALE;
     this.canvas.height = CONFIG.SCREEN_H * CONFIG.SCALE;
     this.ctx.imageSmoothingEnabled = false;
@@ -297,6 +298,18 @@ class Game {
     this.paused   = false;
 
     this.currentScene = 'hamlet'; // 'hamlet' | 'golf_ouest' | 'golf_est' | 'golf_minigame' | 'dialogue'
+  }
+
+  // Calcule la résolution interne pour REMPLIR la zone d'affichage (portrait mobile / paysage desktop),
+  // avec un zoom où une tuile fait ~28-32 px à l'écran et des pixels nets.
+  fitViewport() {
+    const stage = document.getElementById('stage');
+    let dw = (stage && stage.clientWidth)  || window.innerWidth  || 360;
+    let dh = (stage && stage.clientHeight) || Math.round((window.innerHeight || 640) * 0.64);
+    const small = Math.min(window.innerWidth || 360, window.innerHeight || 640) < 640;
+    CONFIG.SCALE = small ? 2 : 3;                       // px écran par px interne
+    CONFIG.SCREEN_W = Math.max(176, Math.round(dw / CONFIG.SCALE));
+    CONFIG.SCREEN_H = Math.max(176, Math.round(dh / CONFIG.SCALE));
   }
 
   async init() {
