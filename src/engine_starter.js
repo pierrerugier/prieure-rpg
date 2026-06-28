@@ -772,6 +772,21 @@ class Tilemap {
       layer(gs, t => t === 's');                          // sable (bunkers)
       layer(gp, t => t === 'p');                          // chemins / dalles
       layer(gw, t => t === 'w');                          // eau
+      // 3. Objets : arbres sur la forêt + fleurs éparses sur le rough
+      const [pine, oak, fr, fy, fp] = await Promise.all(
+        ['pine','oak','flower_red','flower_yellow','flower_pink'].map(n => this.loadGround(`assets/sprites/${n}.png`)));
+      const hash = (c, r) => (((c*73856093) ^ (r*19349663)) >>> 0);
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const t = terr[r*cols+c];
+        if (t === 't' && (pine || oak)) {
+          const im = (hash(c,r) % 3 === 0 ? pine : oak) || pine || oak;
+          const th = 30, sc = th / im.height, w = im.width * sc;
+          gx.drawImage(im, Math.round(c*T + T/2 - w/2), r*T + T - th, Math.round(w), th);
+        } else if (t === 'r' && hash(c,r) % 47 === 0) {
+          const fl = [fr, fy, fp][hash(c,r) % 3];
+          if (fl) { const fh = 12, sc = fh / fl.height; gx.drawImage(fl, c*T, r*T + 2, Math.round(fl.width*sc), fh); }
+        }
+      }
     } catch (e) {
       gx.fillStyle = '#6cae54'; gx.fillRect(0, 0, W, H);  // repli si tilesets indisponibles
     }
