@@ -40,14 +40,14 @@ const LOOKS = {
 const P = (cx, cy) => ({ x: cx*TILE+TILE/2, y: cy*TILE+TILE/2 });
 function npcDefs() {
   return [
-    { id:'victor',  ...P(20,28), look:LOOKS.victor,  idle:'victor_greet' },
-    { id:'charles', ...P(34,28), look:LOOKS.charles, idle:'charles_greet' },
-    { id:'margot',  ...P(27,35), look:LOOKS.margot,  idle:'margot_greet', wander:true },
-    { id:'antoine', ...P(44,28), look:LOOKS.antoine, idle:'antoine_greet' },
-    { id:'oscar',   ...P(14,35), look:LOOKS.oscar,   idle:'oscar_greet' },
-    { id:'louis',   ...P(40,42), look:LOOKS.louis,   idle:'louis_greet' },
-    { id:'kupi',    ...P(48,30), look:LOOKS.kupi,    idle:'kupi_greet' },
-    { id:'paul',    ...P(14,42), look:LOOKS.paul,    idle:'paul_greet' },
+    { id:'victor',  ...P(23,12), look:LOOKS.victor,  idle:'victor_greet' },
+    { id:'charles', ...P(35,11), look:LOOKS.charles, idle:'charles_greet' },
+    { id:'margot',  ...P(28,34), look:LOOKS.margot,  idle:'margot_greet', wander:true },
+    { id:'antoine', ...P(18,30), look:LOOKS.antoine, idle:'antoine_greet' },
+    { id:'oscar',   ...P(37,30), look:LOOKS.oscar,   idle:'oscar_greet' },
+    { id:'louis',   ...P(44,35), look:LOOKS.louis,   idle:'louis_greet' },
+    { id:'kupi',    ...P(54,28), look:LOOKS.kupi,    idle:'kupi_greet' },
+    { id:'paul',    ...P(28,42), look:LOOKS.paul,    idle:'paul_greet' },
     { id:'greenkeeper', kind:'npc', name:'Marcel', ...P(72,64),
       look:{hair:'#9a9a9a',skin:'#d8b48a',shirt:'#2e6a3a',pants:'#3a3a2a',shoes:'#2a2a1a'},
       idle:[["Pas de vélo sur les greens, petit. C'est sacré, un green."],
@@ -55,11 +55,11 @@ function npcDefs() {
             ["Les balles dans le rough, c'est pour moi. C'est la règle."],
             ["J'ai perdu un caddie quelque part dans le 7. Si tu le vois..."],
             ["Quarante ans que je tonds ce parcours. Il me connaît mieux que ma femme."]] },
-    { id:'dog1', kind:'dog', name:'le chien', ...P(30,33), color:'#8a6038', wander:true, range:48 },
-    { id:'passant1', kind:'passant', name:'Mme Lévêque', ...P(24,38), look:LOOKS.pA, wander:true, range:64,
+    { id:'dog1', kind:'dog', name:'le chien', ...P(28,18), color:'#8a6038', wander:true, range:48 },
+    { id:'passant1', kind:'passant', name:'Mme Lévêque', ...P(28,35), look:LOOKS.pA, wander:true, range:64,
       idle:[{speaker:'Mme Lévêque',text:"Ah, les jeunes ! Profitez-en, c'est le plus bel été."},
             {speaker:'Mme Lévêque',text:"Vous n'auriez pas vu mon chien ? Il file vers le golf."}]},
-    { id:'passant2', kind:'passant', name:'M. Grémont', ...P(40,35), look:LOOKS.pB, wander:true, range:64,
+    { id:'passant2', kind:'passant', name:'M. Grémont', ...P(35,18), look:LOOKS.pB, wander:true, range:64,
       idle:[{speaker:'M. Grémont',text:"Belle journée pour marcher, n'est-ce pas ?"},
             {speaker:'M. Grémont',text:"De mon temps, on rentrait à la nuit tombée."}]},
   ];
@@ -78,8 +78,8 @@ export function buildWorld() {
       }
     return s;
   }
-  const spawn = place(28*TILE, 33*TILE);  // place du hameau (coords px)
-  const bike  = place(34*TILE, 35*TILE);
+  const spawn = place(38*TILE, 33*TILE);  // allée est du hameau (coords px)
+  const bike  = place(40*TILE, 35*TILE);
   return {
     width: W, height: H, cols: COLS, rows: ROWS, solid: SOLID, level: L,
     label: 'Le Prieuré', spawn, bike,

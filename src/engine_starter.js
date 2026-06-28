@@ -500,33 +500,43 @@ class Game {
   }
 
   renderHUD(b) {
-    const W = CONFIG.SCREEN_W;
+    const W = CONFIG.SCREEN_W, H = CONFIG.SCREEN_H;
+    b.textAlign = 'left';
+    // tronque un texte pour tenir dans maxW px (selon la police courante)
+    const fit = (s, maxW) => { if (b.measureText(s).width <= maxW) return s; while (s.length > 1 && b.measureText(s + '…').width > maxW) s = s.slice(0, -1); return s + '…'; };
+
     // Réputation (haut-droite)
     const rep = this.saveData.player.reputation;
     b.fillStyle = 'rgba(0,0,0,0.7)'; b.fillRect(W - 64, 4, 60, 14);
-    b.fillStyle = '#f8f8f8'; b.font = '7px monospace'; b.textAlign = 'left';
+    b.fillStyle = '#f8f8f8'; b.font = '7px monospace';
     b.fillText('REP', W - 61, 14);
     for (let i = 0; i < 5; i++) { b.fillStyle = i < rep ? '#f8c020' : '#404040'; b.fillRect(W - 40 + i * 7, 7, 5, 8); }
 
-    // Zone (haut-centre) — entre la bannière de quête et REP
-    b.fillStyle = 'rgba(0,0,0,0.55)'; b.fillRect(W/2 - 70, 4, 140, 13);
-    b.fillStyle = '#bfe89a'; b.font = '7px monospace'; b.textAlign = 'center';
-    b.fillText(this.tilemap.currentZoneLabel, W/2, 14); b.textAlign = 'left';
-
-    // Bannière de quête (haut-gauche)
+    // Bannière de quête (haut-gauche) — largeur bornée pour ne JAMAIS chevaucher REP
+    const bw = W - 72;
     const Q = this.activeQuest(), o = this.activeObjective();
     if (Q && o) {
-      b.fillStyle = 'rgba(0,0,0,0.66)'; b.fillRect(4, 4, 220, 28);
-      b.fillStyle = '#f8d050'; b.font = 'bold 8px monospace';
-      b.fillText('✦ ' + Q.title, 10, 15);
-      b.fillStyle = '#e6f0e6'; b.font = '7px monospace';
+      b.fillStyle = 'rgba(0,0,0,0.66)'; b.fillRect(4, 4, bw, 28);
+      b.fillStyle = '#f8d050'; b.font = 'bold 9px monospace';
+      b.fillText(fit('✦ ' + Q.title, bw - 12), 10, 15);
+      b.fillStyle = '#e6f0e6'; b.font = '8px monospace';
       let t = '› ' + o.text;
       if (o.type === 'talkAll') t += `  ${this.quest().talked.length}/${o.targets.length}`;
-      b.fillText(t.length > 38 ? t.slice(0, 37) + '…' : t, 10, 26);
+      b.fillText(fit(t, bw - 12), 10, 26);
     } else if (!Q) {
-      b.fillStyle = 'rgba(0,0,0,0.55)'; b.fillRect(4, 4, 170, 15);
-      b.fillStyle = '#a0e0a0'; b.font = '7px monospace';
-      b.fillText("Été libre — explore le Prieuré", 10, 15);
+      b.fillStyle = 'rgba(0,0,0,0.55)'; b.fillRect(4, 4, bw, 15);
+      b.fillStyle = '#a0e0a0'; b.font = '8px monospace';
+      b.fillText(fit('Été libre — explore le Prieuré', bw - 12), 10, 14);
+    }
+
+    // Zone : étiquette discrète en bas-centre (hors de la zone HUD haute et du toast)
+    if (!this.dialogueMgr.active) {
+      b.font = '7px monospace';
+      const zl = this.tilemap.currentZoneLabel || '';
+      const zw = b.measureText(zl).width + 12;
+      b.fillStyle = 'rgba(0,0,0,0.5)'; b.fillRect((W - zw) / 2, H - 15, zw, 12);
+      b.fillStyle = '#bfe89a'; b.textAlign = 'center';
+      b.fillText(zl, W / 2, H - 6); b.textAlign = 'left';
     }
 
     // Indicateur vélo (bas-gauche) — visible dès qu'on le possède
@@ -1081,7 +1091,7 @@ class DialogueManager {
     const T  = CONFIG.TILE;
     const W  = CONFIG.SCREEN_W;
     const H  = CONFIG.SCREEN_H;
-    const bH = 48;
+    const bH = 56;
     const y0 = H - bH - 2;
 
     // Box
@@ -1094,19 +1104,19 @@ class DialogueManager {
     // Speaker name
     const line = this.lines[this.current] || {};
     ctx.fillStyle = '#c0f080';
-    ctx.font = 'bold 7px monospace';
-    ctx.fillText((line.speaker || '').toUpperCase(), 10, y0 + 10);
+    ctx.font = 'bold 9px monospace';
+    ctx.fillText((line.speaker || '').toUpperCase(), 10, y0 + 12);
 
-    // Text (wrap à 50 chars)
+    // Text (wrap)
     ctx.fillStyle = '#f8f8f8';
-    ctx.font = '7px monospace';
+    ctx.font = '9px monospace';
     const words = (this.text || '').split(' ');
-    let lineStr = '', lineY = y0 + 20;
+    let lineStr = '', lineY = y0 + 25;
     for (const word of words) {
       const test = lineStr + (lineStr ? ' ' : '') + word;
       if (ctx.measureText(test).width > W - 20) {
         ctx.fillText(lineStr, 10, lineY);
-        lineStr = word; lineY += 10;
+        lineStr = word; lineY += 11;
       } else {
         lineStr = test;
       }

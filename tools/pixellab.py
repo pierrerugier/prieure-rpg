@@ -36,7 +36,7 @@ def balance():
 
 def sprite(sid, desc, size=64, nobg=True, init=None):
     body = {'description': desc, 'image_size': {'width': int(size), 'height': int(size)}}
-    if nobg and not init: body['no_background'] = True
+    if nobg: body['no_background'] = True
     if init:
         import base64 as _b
         body['init_image'] = {'base64': _b.b64encode(open(init,'rb').read()).decode()}
@@ -99,6 +99,7 @@ def tileset(tid, lower, upper, transition=None):
 cmd = sys.argv[1] if len(sys.argv) > 1 else 'balance'
 if cmd == 'balance': balance()
 elif cmd == 'sprite': sprite(sys.argv[2], sys.argv[3], *(sys.argv[4:6] if len(sys.argv) > 4 else []))
-elif cmd == 'isprite': sprite(sys.argv[2], sys.argv[3], sys.argv[4], False, sys.argv[5])  # init_image img2img
+elif cmd == 'isprite': sprite(sys.argv[2], sys.argv[3], sys.argv[4], False, sys.argv[5])  # init_image img2img (avec fond)
+elif cmd == 'ihouse':  sprite(sys.argv[2], sys.argv[3], sys.argv[4], True,  sys.argv[5])  # img2img + fond transparent
 elif cmd == 'char': char(sys.argv[2], sys.argv[3], *(sys.argv[4:5]))
 elif cmd == 'tileset': tileset(sys.argv[2], sys.argv[3], sys.argv[4], *(sys.argv[5:6]))
