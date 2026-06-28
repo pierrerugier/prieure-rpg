@@ -83,6 +83,7 @@ export function buildWorld() {
     label: 'Golf du Prieuré', spawn, bike,
     npcs: npcDefs().map(n => ({ ...n, ...place(n.x, n.y) })),
     golf: { x: W*0.6, y: H*0.55 },
+    groundSrc: 'assets/map_world.png',   // la VRAIE carte en fond (rendu exact)
   };
 }
 export { W as WORLD_W, H as WORLD_H };

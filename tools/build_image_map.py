@@ -10,6 +10,8 @@ WORLD = 2560
 COLS = WORLD // TILE       # 160
 
 src = Image.open(os.path.join(ROOT, 'assets', 'map.png')).convert('RGB')
+# Image de jeu = la VRAIE carte (haute résolution, rendu net)
+src.resize((WORLD, WORLD), Image.LANCZOS).save(os.path.join(ROOT, 'assets', 'map_world.png'))
 grid = src.resize((COLS, COLS), Image.BILINEAR)
 px = grid.load()
 

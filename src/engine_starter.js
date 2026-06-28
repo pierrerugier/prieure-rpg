@@ -10,10 +10,10 @@ import { MAPIMG } from './map_data.js';
 
 // ── CONFIG ──────────────────────────────────────────────────
 const CONFIG = {
-  TILE:         16,        // taille d'une tile en px
-  SCREEN_W:     240,       // largeur écran GBA
-  SCREEN_H:     160,       // hauteur écran GBA
-  SCALE:        3,         // ×3 pour affichage desktop (720×480)
+  TILE:         16,        // grille de collision
+  SCREEN_W:     480,       // viewport interne (2× GBA — style GBA, pas bridé)
+  SCREEN_H:     320,
+  SCALE:        2,         // ×2 -> 960×640 (le CSS adapte à l'écran)
   WALK_SPEED:   70,        // px/seconde (marche)
   RUN_SPEED:    140,       // px/seconde (course, bouton A)
   BIKE_SPEED:   150,       // px/seconde (vélo)
@@ -688,7 +688,7 @@ class Player {
   render(ctx, camX, camY) {
     const sx = Math.round(this.x - camX);
     const sy = Math.round(this.y - camY);
-    if (this.sprite) drawSprite(ctx, this.sprite, sx, sy, 30);
+    if (this.sprite) drawSprite(ctx, this.sprite, sx, sy, 46);
     else drawCharacter(ctx, sx, sy, this.dir, this.moving ? this.frame : 0, PLAYER_LOOK, false);
   }
 }
@@ -722,8 +722,8 @@ class Tilemap {
     this.bike     = world.bike;
     this.npcDefs  = world.npcs;
     this.golf     = world.golf;
-    // Sol composé : tuiles PixelLab (dual-grid) + features par-dessus
-    this.ground = await this.composeGround();
+    // Sol = la VRAIE carte (image HD), rendu exact
+    this.ground = await this.loadGround(world.groundSrc);
   }
 
   // Charge un tileset Wang PixelLab -> { lut: clé coins(upper=1) -> Image, base: tuile tout-lower }
@@ -875,7 +875,7 @@ class NPC {
   render(ctx, camX, camY) {
     const sx = Math.round(this.x - camX), sy = Math.round(this.y - camY);
     if (this.kind === 'dog') drawDog(ctx, sx, sy, this.dir, this.frame, this.color);
-    else if (this.sprite) drawSprite(ctx, this.sprite, sx, sy, 30);
+    else if (this.sprite) drawSprite(ctx, this.sprite, sx, sy, 46);
     else drawCharacter(ctx, sx, sy, this.dir, this.frame, this.look, false);
   }
 }
