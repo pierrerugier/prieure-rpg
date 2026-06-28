@@ -235,9 +235,21 @@ function drawCar(ctx, x, y, col, vertical) {
 // Dessine un sprite PixelLab centré en (cx,cy), pieds vers cy+10, hauteur cible donnée
 function drawSprite(ctx, img, cx, cy, targetH) {
   const h = targetH || 30, sc = h / img.height, w = img.width * sc;
-  // ombre
   ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(Math.round(cx - w*0.28), Math.round(cy + 8), Math.round(w*0.56), 3);
   ctx.drawImage(img, Math.round(cx - w/2), Math.round(cy + 10 - h), Math.round(w), Math.round(h));
+}
+// Sprite directionnel (set {down,up,left,single}) ; 'right' = 'left' miroir
+function drawDirSprite(ctx, set, cx, cy, dir, targetH) {
+  if (!set) return;
+  let img = set.down, flip = false;
+  if (dir === 'up') img = set.up; else if (dir === 'left') img = set.left;
+  else if (dir === 'right') { img = set.left; flip = true; }
+  if (!img) img = set.single || set.down;
+  const h = targetH || 30, sc = h / img.height, w = img.width * sc;
+  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(Math.round(cx - w*0.28), Math.round(cy + 8), Math.round(w*0.56), 3);
+  if (flip) { ctx.save(); ctx.translate(Math.round(cx), 0); ctx.scale(-1, 1);
+    ctx.drawImage(img, Math.round(-w/2), Math.round(cy + 10 - h), Math.round(w), Math.round(h)); ctx.restore(); }
+  else ctx.drawImage(img, Math.round(cx - w/2), Math.round(cy + 10 - h), Math.round(w), Math.round(h));
 }
 
 // Petite icône de vélo posé (au sol / HUD), ~16×11 en (x,y) coin haut-gauche
@@ -301,17 +313,19 @@ class Game {
     requestAnimationFrame(t => this.loop(t));
   }
 
-  // Charge les sprites PixelLab (perso + PNJ) ; null si absent
+  // Charge les sprites PixelLab : par direction (down/up/left) + repli sprite unique
   async loadSprites() {
     const ids = ['pierre','victor','charles','margot','oscar','antoine','louis','paul','kupi'];
     const out = {};
     if (typeof Image === 'undefined') return out;
-    await Promise.all(ids.map(id => new Promise(res => {
-      const im = new Image();
-      im.onload = () => { out[id] = im; res(); };
-      im.onerror = () => res();
-      im.src = `assets/sprites/${id}.png`;
-    })));
+    const load = src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+    await Promise.all(ids.map(async id => {
+      const [down, up, left, single] = await Promise.all([
+        load(`assets/sprites/${id}_down.png`), load(`assets/sprites/${id}_up.png`),
+        load(`assets/sprites/${id}_left.png`), load(`assets/sprites/${id}.png`)]);
+      const base = down || single;
+      if (base) out[id] = { down: base, up: up || base, left: left || single || base, single: single || base };
+    }));
     return out;
   }
 
@@ -473,41 +487,33 @@ class Game {
   }
 
   renderHUD(b) {
-    // Reputation meter (top-right)
+    const W = CONFIG.SCREEN_W;
+    // Réputation (haut-droite)
     const rep = this.saveData.player.reputation;
-    b.fillStyle = 'rgba(0,0,0,0.7)';
-    b.fillRect(CONFIG.SCREEN_W - 60, 4, 56, 12);
-    b.fillStyle = '#f8f8f8';
-    b.font = '6px monospace';
-    b.fillText(`REP:`, CONFIG.SCREEN_W - 58, 13);
-    for (let i = 0; i < 5; i++) {
-      b.fillStyle = i < rep ? '#f8c020' : '#404040';
-      b.fillRect(CONFIG.SCREEN_W - 38 + i * 8, 6, 6, 6);
-    }
+    b.fillStyle = 'rgba(0,0,0,0.7)'; b.fillRect(W - 64, 4, 60, 14);
+    b.fillStyle = '#f8f8f8'; b.font = '7px monospace'; b.textAlign = 'left';
+    b.fillText('REP', W - 61, 14);
+    for (let i = 0; i < 5; i++) { b.fillStyle = i < rep ? '#f8c020' : '#404040'; b.fillRect(W - 40 + i * 7, 7, 5, 8); }
 
-    // Zone label (top-center, small)
-    b.fillStyle = 'rgba(0,0,0,0.6)';
-    b.fillRect(60, 4, 120, 10);
-    b.fillStyle = '#c0f080';
-    b.font = '6px monospace';
-    b.textAlign = 'center';
-    b.fillText(this.tilemap.currentZoneLabel, 120, 12);
-    b.textAlign = 'left';
+    // Zone (haut-centre) — entre la bannière de quête et REP
+    b.fillStyle = 'rgba(0,0,0,0.55)'; b.fillRect(W/2 - 70, 4, 140, 13);
+    b.fillStyle = '#bfe89a'; b.font = '7px monospace'; b.textAlign = 'center';
+    b.fillText(this.tilemap.currentZoneLabel, W/2, 14); b.textAlign = 'left';
 
-    // Bannière de quête (haut-gauche) : mission + objectif courant
+    // Bannière de quête (haut-gauche)
     const Q = this.activeQuest(), o = this.activeObjective();
     if (Q && o) {
-      b.fillStyle = 'rgba(0,0,0,0.6)'; b.fillRect(4, 4, 200, 24);
-      b.fillStyle = '#f8d050'; b.font = 'bold 7px monospace';
-      b.fillText('✦ ' + Q.title, 9, 14);
-      b.fillStyle = '#dfe8df'; b.font = '7px monospace';
-      let t = o.text;
-      if (o.type === 'talkAll') t += `  (${this.quest().talked.length}/${o.targets.length})`;
-      b.fillText(t.length > 34 ? t.slice(0, 33) + '…' : t, 9, 23);
+      b.fillStyle = 'rgba(0,0,0,0.66)'; b.fillRect(4, 4, 220, 28);
+      b.fillStyle = '#f8d050'; b.font = 'bold 8px monospace';
+      b.fillText('✦ ' + Q.title, 10, 15);
+      b.fillStyle = '#e6f0e6'; b.font = '7px monospace';
+      let t = '› ' + o.text;
+      if (o.type === 'talkAll') t += `  ${this.quest().talked.length}/${o.targets.length}`;
+      b.fillText(t.length > 38 ? t.slice(0, 37) + '…' : t, 10, 26);
     } else if (!Q) {
-      b.fillStyle = 'rgba(0,0,0,0.55)'; b.fillRect(4, 4, 150, 14);
+      b.fillStyle = 'rgba(0,0,0,0.55)'; b.fillRect(4, 4, 170, 15);
       b.fillStyle = '#a0e0a0'; b.font = '7px monospace';
-      b.fillText("Été libre — explore le Prieuré", 9, 14);
+      b.fillText("Été libre — explore le Prieuré", 10, 15);
     }
 
     // Indicateur vélo (bas-gauche) — visible dès qu'on le possède
@@ -656,17 +662,12 @@ class Game {
   renderToast(b) {
     if (!this._toast) return;
     const W = CONFIG.SCREEN_W;
-    const tw = b.measureText ? Math.min(W - 20, this._toast.text.length * 4 + 12) : 120;
-    const x = (W - tw) / 2;
-    b.fillStyle = 'rgba(0,0,0,0.82)';
-    b.fillRect(x, 22, tw, 14);
-    b.strokeStyle = '#f8c020';
-    b.lineWidth = 1;
-    b.strokeRect(x, 22, tw, 14);
-    b.fillStyle = '#f8e060';
-    b.font = '6px monospace';
-    b.textAlign = 'center';
-    b.fillText(this._toast.text, W / 2, 31);
+    const tw = Math.min(W - 24, this._toast.text.length * 5 + 16);
+    const x = (W - tw) / 2, y = 40;            // sous la bannière de quête (pas de chevauchement)
+    b.fillStyle = 'rgba(0,0,0,0.85)'; b.fillRect(x, y, tw, 16);
+    b.strokeStyle = '#f8c020'; b.lineWidth = 1; b.strokeRect(x, y, tw, 16);
+    b.fillStyle = '#f8e060'; b.font = '7px monospace'; b.textAlign = 'center';
+    b.fillText(this._toast.text, W / 2, y + 11);
     b.textAlign = 'left';
   }
 }
@@ -738,7 +739,7 @@ class Player {
   render(ctx, camX, camY) {
     const sx = Math.round(this.x - camX);
     const sy = Math.round(this.y - camY);
-    if (this.sprite) drawSprite(ctx, this.sprite, sx, sy, 46);
+    if (this.sprite) drawDirSprite(ctx, this.sprite, sx, sy, this.dir, 46);
     else drawCharacter(ctx, sx, sy, this.dir, this.moving ? this.frame : 0, PLAYER_LOOK, false);
   }
 }
@@ -935,7 +936,7 @@ class NPC {
   render(ctx, camX, camY) {
     const sx = Math.round(this.x - camX), sy = Math.round(this.y - camY);
     if (this.kind === 'dog') drawDog(ctx, sx, sy, this.dir, this.frame, this.color);
-    else if (this.sprite) drawSprite(ctx, this.sprite, sx, sy, 46);
+    else if (this.sprite) drawDirSprite(ctx, this.sprite, sx, sy, this.dir, 44);
     else drawCharacter(ctx, sx, sy, this.dir, this.frame, this.look, false);
   }
 }

@@ -52,13 +52,18 @@ for (let i=0;i<70;i++){ const c=6+Math.floor(R()*(COLS-12)), r=50+Math.floor(R()
 rect(8,8,58,46,'g');
 const lanes = [ [[14,10],[14,44]], [[26,10],[26,44]], [[40,10],[40,46]], [[8,26],[52,26]], [[8,40],[52,40]] ];
 for (const l of lanes) thick(l,1,'v');
-const roofs = ['house_red','house_blue','house_grey','house_brown','house_orange','manor'];
-const houseSpots = [[10,10],[19,10],[31,10],[43,10],[10,18],[31,18],[43,18],[10,30],[19,30],[31,30],[43,30],[19,18]];
+// Haut du hameau = villas forêt (toit ~plat, pierre/lambris) ; bas = manoirs Île-de-France
+const villas  = ['villaf1','villaf3','villaf1','villaf3'];
+const manors  = ['manorif1','manorif2','manorif1','manorif2'];
+const houseSpots = [[10,10],[19,10],[31,10],[43,10],[10,18],[31,18],[43,18],[19,18],[10,30],[20,30],[32,30],[44,30]];
 houseSpots.forEach(([hx,hy],idx)=>{
-  obj(roofs[idx%roofs.length], hx+2, hy+2, true, 5, 4);
-  if(idx%2) deco(['flower_red','flower_yellow','flower_pink'][idx%3], hx+5, hy+4);
+  const idf = hy >= 28;
+  obj(idf ? manors[idx%manors.length] : villas[idx%villas.length], hx+(idf?3:2), hy+2, true, idf?6:5, idf?5:4);
+  if(idx%2) deco(['flower_red','flower_yellow','flower_pink'][idx%3], hx+5, hy+5);
 });
-hedgeRing(7,7,57,45);                            // haie d'enceinte du hameau
+// Haie d'enceinte (bloquante) avec une brèche au sud pour la route de sortie
+for(let c=7;c<=57;c++){ obj('hedge',c,7); if(c<38||c>42) obj('hedge',c,45); }
+for(let r=8;r<45;r++){ obj('hedge',7,r); obj('hedge',57,r); }
 for(let r=12;r<44;r+=8){ obj('lamp',26,r,false); obj('lamp',40,r,false); }
 obj('bench',34,25,false); obj('bench',20,39,false);
 

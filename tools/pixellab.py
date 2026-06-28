@@ -34,11 +34,14 @@ def b64(s):
 def balance():
     print(json.dumps(req('GET', '/balance')[1], indent=2))
 
-def sprite(sid, desc, size=64, nobg=True):
+def sprite(sid, desc, size=64, nobg=True, init=None):
     body = {'description': desc, 'image_size': {'width': int(size), 'height': int(size)}}
-    if nobg: body['no_background'] = True
+    if nobg and not init: body['no_background'] = True
+    if init:
+        import base64 as _b
+        body['init_image'] = {'base64': _b.b64encode(open(init,'rb').read()).decode()}
     st, res = req('POST', '/create-image-pixflux', body)
-    if st != 200: print('ERR', st, res); return
+    if st != 200: print('ERR', sid, st, res); return
     open(os.path.join(SPR, sid + '.png'), 'wb').write(b64(res['image']))
     print('OK sprite', sid, res.get('usage'))
 
@@ -96,5 +99,6 @@ def tileset(tid, lower, upper, transition=None):
 cmd = sys.argv[1] if len(sys.argv) > 1 else 'balance'
 if cmd == 'balance': balance()
 elif cmd == 'sprite': sprite(sys.argv[2], sys.argv[3], *(sys.argv[4:6] if len(sys.argv) > 4 else []))
+elif cmd == 'isprite': sprite(sys.argv[2], sys.argv[3], sys.argv[4], False, sys.argv[5])  # init_image img2img
 elif cmd == 'char': char(sys.argv[2], sys.argv[3], *(sys.argv[4:5]))
 elif cmd == 'tileset': tileset(sys.argv[2], sys.argv[3], sys.argv[4], *(sys.argv[5:6]))
