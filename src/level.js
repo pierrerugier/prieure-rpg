@@ -55,10 +55,16 @@ const holes = [
 for (const h of holes) thick(h, 4, 'f');
 // greens (bout de chaque trou) + drapeau, et bunkers à côté
 const greens = [[122,48],[96,84],[52,108],[104,114],[132,80],[44,112],[140,30]];
-for (const [c,r] of greens){ disc(c,r,3,'f'); obj('flag',c,r,false); disc(c+4,r-2,2,'d'); }
+for (const [c,r] of greens){ disc(c,r,3,'f'); deco('green_disc',c,r+1); obj('flag',c,r,false); disc(c+4,r-2,2,'d'); }
 const bunkers = [[88,26],[116,40],[104,78],[70,94],[120,100],[36,86],[126,60]];
 for (const [c,r] of bunkers) { disc(c,r,3,'d'); disc(c+2,r+1,2,'d'); }   // bunkers plus larges/organiques
 disc(112,62,5,'w'); disc(58,120,4,'w'); disc(134,116,4,'w');   // étangs
+// roseaux au bord des étangs (déco sur l'herbe juste autour de l'eau)
+for (const [pc,pr,rad] of [[112,62,5],[58,120,4],[134,116,4]]){
+  for (let a=0;a<8;a++){ if(R()<0.4) continue; const ang=a*Math.PI/4;
+    const c=Math.round(pc+Math.cos(ang)*(rad+1)), r=Math.round(pr+Math.sin(ang)*(rad+1));
+    if(inb(c,r) && T[ti(c,r)]==='g') deco('reed',c,r); }
+}
 // arbres qui bordent les fairways (bosquets)
 for (let i=0;i<70;i++){ const c=6+Math.floor(R()*(COLS-12)), r=50+Math.floor(R()*(ROWS-58)); if(T[ti(c,r)]==='g' && R()<0.5) obj(R()<0.5?'pine':'oak',c,r); }
 
