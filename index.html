@@ -2,51 +2,92 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Le Prieuré RPG</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #0a0a14;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    font-family: monospace;
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; touch-action:none; }
+  html,body { height:100%; background:#0a0a14; font-family:monospace; overflow:hidden; }
+  #wrap { display:flex; flex-direction:column; align-items:center; height:100%; }
+  #title { color:#a8e870; font-size:12px; letter-spacing:3px; padding:6px; text-transform:uppercase; }
+  #stage { flex:1 1 auto; display:flex; align-items:center; justify-content:center; width:100%; min-height:0; }
+  #game { border:3px solid #1a3a1a; image-rendering:pixelated; width:auto; height:auto; max-width:100%; max-height:100%; aspect-ratio:3/2; }
+  #hint { color:#4a6a4a; font-size:10px; padding:6px; text-align:center; }
+  #hint span { color:#6a9a6a; }
+
+  /* ── Manette GBA (mobile) ── */
+  #pad { display:none; width:100%; max-width:560px; padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+         flex:0 0 auto; }
+  #pad .row { display:flex; align-items:center; justify-content:space-between; }
+  .dpad { position:relative; width:132px; height:132px; }
+  .dpad button { position:absolute; width:44px; height:44px; background:#2b2b33; border:2px solid #15151a;
+                 color:#9aa; font-size:16px; border-radius:8px; }
+  .dpad .up{left:44px;top:0;} .dpad .down{left:44px;top:88px;} .dpad .left{left:0;top:44px;} .dpad .right{left:88px;top:44px;}
+  .dpad .mid{left:44px;top:44px;width:44px;height:44px;background:#2b2b33;border:2px solid #15151a;border-radius:6px;}
+  .ab { display:flex; gap:18px; align-items:flex-end; }
+  .ab button { width:64px; height:64px; border-radius:50%; font-weight:bold; font-size:20px; color:#fff;
+               border:3px solid rgba(0,0,0,0.4); box-shadow:0 3px 0 rgba(0,0,0,0.4); }
+  .ab .b-a{ background:#c0392b; transform:translateY(-14px); }   /* A = courir */
+  .ab .b-b{ background:#2e6da4; }                                /* B = parler */
+  .ab .lab{ font-size:9px; color:#7a8; text-align:center; margin-top:2px; }
+  .sscol { display:flex; gap:12px; margin:10px auto 0; justify-content:center; }
+  .ss { background:#222; border:2px solid #111; color:#9aa; font-size:9px; padding:6px 14px; border-radius:14px;
+        transform:rotate(-18deg); letter-spacing:1px; }
+  .pressed { filter:brightness(1.5); }
+
+  @media (pointer:coarse), (max-width:760px) {
+    #pad { display:block; }
+    #hint { display:none; }
+    #title { font-size:10px; padding:3px; }
   }
-  #title {
-    color: #a8e870;
-    font-size: 14px;
-    letter-spacing: 4px;
-    margin-bottom: 12px;
-    text-transform: uppercase;
-  }
-  #game {
-    border: 3px solid #1a3a1a;
-    image-rendering: pixelated;
-    /* GBA: 240×160 × 3 = 720×480 */
-    width: 720px;
-    height: 480px;
-  }
-  #controls {
-    color: #4a6a4a;
-    font-size: 10px;
-    margin-top: 10px;
-    text-align: center;
-    line-height: 1.8;
-  }
-  #controls span { color: #6a9a6a; }
 </style>
 </head>
 <body>
-<div id="title">Le Prieuré RPG</div>
-<canvas id="game" width="720" height="480"></canvas>
-<div id="controls">
-  <span>ZQSD</span> / Flèches : Déplacer &nbsp;|&nbsp;
-  <span>Entrée / X</span> : Parler / Confirmer &nbsp;|&nbsp;
-  <span>Echap</span> : Menu
+<div id="wrap">
+  <div id="title">Le Prieuré RPG</div>
+  <div id="stage"><canvas id="game" width="720" height="480"></canvas></div>
+  <div id="hint">
+    <span>ZQSD</span> Déplacer &nbsp;|&nbsp; <span>Maj</span> Courir &nbsp;|&nbsp;
+    <span>Entrée/X</span> Parler &nbsp;|&nbsp; <span>Échap</span> Pause &nbsp;|&nbsp; <span>Tab</span> Inventaire
+  </div>
+  <div id="pad">
+    <div class="row">
+      <div class="dpad">
+        <div class="mid"></div>
+        <button class="up"    data-k="up">▲</button>
+        <button class="down"  data-k="down">▼</button>
+        <button class="left"  data-k="left">◀</button>
+        <button class="right" data-k="right">▶</button>
+      </div>
+      <div class="ab">
+        <div><button class="b-b" data-k="talk">B</button><div class="lab">PARLER</div></div>
+        <div><button class="b-a" data-k="run">A</button><div class="lab">COURIR</div></div>
+      </div>
+    </div>
+    <div class="sscol">
+      <button class="ss" data-k="select">SELECT · sac</button>
+      <button class="ss" data-k="start">START · carte</button>
+    </div>
+  </div>
 </div>
+
+<script>
+  // Pont manette tactile -> état lu par le moteur
+  window.__pad = { up:false, down:false, left:false, right:false, run:false, talk:false, start:false, select:false };
+  window.__padJust = {};
+  function setPad(k, v) {
+    if (v && !window.__pad[k]) window.__padJust[k] = true;
+    window.__pad[k] = v;
+  }
+  document.querySelectorAll('#pad [data-k]').forEach(el => {
+    const k = el.getAttribute('data-k');
+    const down = e => { e.preventDefault(); el.classList.add('pressed'); setPad(k, true); };
+    const up   = e => { e.preventDefault(); el.classList.remove('pressed'); setPad(k, false); };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('pointerleave', up);
+  });
+</script>
 <script type="module" src="src/engine_starter.js"></script>
 </body>
 </html>

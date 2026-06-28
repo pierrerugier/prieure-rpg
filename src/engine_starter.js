@@ -5,7 +5,8 @@
 
 import { NPCS, MISSIONS, DIALOGUES, COLLECTIBLES, GOLF_HOLES, MAP_ZONES }
   from './data_complete.js';
-import { buildWorld, paintFeatures, pathGrid } from './world.js';
+import { buildWorld } from './world.js';
+import { MAPIMG } from './map_data.js';
 
 // ── CONFIG ──────────────────────────────────────────────────
 const CONFIG = {
@@ -13,7 +14,8 @@ const CONFIG = {
   SCREEN_W:     240,       // largeur écran GBA
   SCREEN_H:     160,       // hauteur écran GBA
   SCALE:        3,         // ×3 pour affichage desktop (720×480)
-  WALK_SPEED:   78,        // px/seconde (marche)
+  WALK_SPEED:   70,        // px/seconde (marche)
+  RUN_SPEED:    140,       // px/seconde (course, bouton A)
   BIKE_SPEED:   150,       // px/seconde (vélo)
   FPS_TARGET:   60,
   // Couleur de fond (hors carte)
@@ -229,6 +231,14 @@ function drawCar(ctx, x, y, col, vertical) {
   ctx.restore();
 }
 
+// Dessine un sprite PixelLab centré en (cx,cy), pieds vers cy+10, hauteur cible donnée
+function drawSprite(ctx, img, cx, cy, targetH) {
+  const h = targetH || 30, sc = h / img.height, w = img.width * sc;
+  // ombre
+  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(Math.round(cx - w*0.28), Math.round(cy + 8), Math.round(w*0.56), 3);
+  ctx.drawImage(img, Math.round(cx - w/2), Math.round(cy + 10 - h), Math.round(w), Math.round(h));
+}
+
 // Petite icône de vélo posé (au sol / HUD), ~16×11 en (x,y) coin haut-gauche
 function drawBicycle(ctx, x, y) {
   ctx.fillStyle = '#202020';
@@ -278,16 +288,30 @@ class Game {
 
   async init() {
     await this.tilemap.loadMap(this.currentScene);
+    this.sprites = await this.loadSprites();
     this.player.x = this.tilemap.spawn.x;
     this.player.y = this.tilemap.spawn.y;
-    this.player.ownsBike = !!this.saveData.player.flags.bike;
-    this.player.hasBike  = false;  // on démarre à pied (B pour monter)
+    this.player.sprite = this.sprites['pierre'] || null;
     this.camera.follow(this.player);
     this.camera.snap(this.player, this.tilemap);
-    this.npcMgr.loadNPCs(this.tilemap);
+    this.npcMgr.loadNPCs(this.tilemap, this.sprites);
     this.missionMgr.init(this.saveData, this);
     this.running = true;
     requestAnimationFrame(t => this.loop(t));
+  }
+
+  // Charge les sprites PixelLab (perso + PNJ) ; null si absent
+  async loadSprites() {
+    const ids = ['pierre','victor','charles','margot','oscar','antoine','louis','paul','kupi'];
+    const out = {};
+    if (typeof Image === 'undefined') return out;
+    await Promise.all(ids.map(id => new Promise(res => {
+      const im = new Image();
+      im.onload = () => { out[id] = im; res(); };
+      im.onerror = () => res();
+      im.src = `assets/sprites/${id}.png`;
+    })));
+    return out;
   }
 
   loop(timestamp) {
@@ -302,20 +326,15 @@ class Game {
   update(dt) {
     this.updateToast(dt);
 
-    // Menu pause (Échap) — prioritaire
-    if (this.input.isJustPressed('Start')) this.paused = !this.paused;
-    if (this.paused) { this.input.flush(); return; }
+    // START = pause + carte / SELECT = inventaire
+    if (this.input.isJustPressed('Start'))  { this.paused = !this.paused; this.invOpen = false; }
+    if (this.input.isJustPressed('Select')) { this.invOpen = !this.invOpen; this.paused = false; }
+    if (this.paused || this.invOpen) { this.input.flush(); return; }
 
     if (this.dialogueMgr.active) {
       this.dialogueMgr.update(this.input);
       this.input.flush();
       return;
-    }
-
-    // Vélo : activer / désactiver (une fois ramassé)
-    if (this.input.isJustPressed('Bike') && this.player.ownsBike) {
-      this.player.hasBike = !this.player.hasBike;
-      this.showMessage(this.player.hasBike ? 'Vélo : EN SELLE' : 'Vélo : à pied');
     }
 
     this.player.update(dt, this.input, this.tilemap);
@@ -401,6 +420,7 @@ class Game {
     this.renderToast(b);
     if (this.dialogueMgr.active) this.dialogueMgr.render(b);
     if (this.paused) this.renderPause(b);
+    if (this.invOpen) this.renderInventory(b);
 
     // Upscale buffer → display canvas
     const ctx = this.ctx;
@@ -492,10 +512,34 @@ class Game {
 
     // Contrôles
     b.fillStyle = '#6a8a6a'; b.font = '6px monospace';
-    b.fillText('ZQSD: bouger', ix, H - 40);
-    b.fillText('Entrée/X: parler', ix, H - 31);
-    b.fillText('B: vélo on/off', ix, H - 22);
-    b.fillText('Échap: fermer', ix, H - 13);
+    b.fillText('Croix: bouger', ix, H - 40);
+    b.fillText('A: courir  B: parler', ix, H - 31);
+    b.fillText('SELECT: sac', ix, H - 22);
+    b.fillText('START: fermer', ix, H - 13);
+  }
+
+  // ── INVENTAIRE (SELECT) ───────────────────────────────────
+  renderInventory(b) {
+    const W = CONFIG.SCREEN_W, H = CONFIG.SCREEN_H;
+    b.fillStyle = 'rgba(12,10,20,0.86)'; b.fillRect(0, 0, W, H);
+    b.fillStyle = '#a0c0f0'; b.font = 'bold 9px monospace'; b.textAlign = 'center';
+    b.fillText('— SAC —', W / 2, 18); b.textAlign = 'left';
+    const cats = [
+      ['Objets', this.saveData.player.inventory],
+      ['Balles de golf', this.saveData.collectibles.golf_balls],
+      ['Photos', this.saveData.collectibles.old_photos],
+      ['Capsules', this.saveData.collectibles.beer_caps],
+      ['Cartes Pokémon', this.saveData.collectibles.pokemon_cards],
+    ];
+    let y = 36;
+    b.font = '7px monospace';
+    for (const [name, arr] of cats) {
+      b.fillStyle = '#c0c0d0'; b.fillText(name, 14, y);
+      b.fillStyle = '#7a7a90'; b.fillText('x' + (arr ? arr.length : 0), W - 30, y);
+      y += 14;
+    }
+    b.fillStyle = '#6a6a80'; b.font = '6px monospace';
+    b.fillText('SELECT / Tab : fermer', 14, H - 12);
   }
 
   loadSave() {
@@ -617,14 +661,16 @@ class Player {
 
     if (dx || dy) {
       this.dir = dx < 0 ? 'left' : dx > 0 ? 'right' : dy < 0 ? 'up' : 'down';
-      const speed = (this.hasBike ? CONFIG.BIKE_SPEED : CONFIG.WALK_SPEED) * dt;
+      const running = input.isDown('Run');
+      this.running = running;
+      const speed = (running ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED) * dt;
       const nx = this.x + dx * speed;
       const ny = this.y + dy * speed;
       if (this.canMoveTo(nx, this.y, tilemap)) this.x = nx;
       if (this.canMoveTo(this.x, ny, tilemap)) this.y = ny;
 
       this.moving = true;
-      this.animT += dt * (this.hasBike ? 2.6 : 1.7);
+      this.animT += dt * (running ? 2.8 : 1.7);
       this.frame = Math.floor(this.animT * 8) % 4;
     } else {
       this.moving = false;
@@ -642,7 +688,8 @@ class Player {
   render(ctx, camX, camY) {
     const sx = Math.round(this.x - camX);
     const sy = Math.round(this.y - camY);
-    drawCharacter(ctx, sx, sy, this.dir, this.moving ? this.frame : 0, PLAYER_LOOK, this.hasBike);
+    if (this.sprite) drawSprite(ctx, this.sprite, sx, sy, 30);
+    else drawCharacter(ctx, sx, sy, this.dir, this.moving ? this.frame : 0, PLAYER_LOOK, false);
   }
 }
 
@@ -679,44 +726,55 @@ class Tilemap {
     this.ground = await this.composeGround();
   }
 
-  // Charge le tileset PixelLab et compose le sol (herbe + allées Wang) + features
+  // Charge un tileset Wang PixelLab -> { lut: clé coins(upper=1) -> Image, base: tuile tout-lower }
+  async loadTileset(name) {
+    const data = await (await fetch(`assets/tiles/${name}.json`)).json();
+    const lut = {};
+    await Promise.all(data.tileset.tiles.map(t => new Promise(res => {
+      const im = new Image();
+      im.onload = () => {
+        const k = c => (c === 'upper' ? '1' : '0');
+        lut[k(t.corners.NW)+k(t.corners.NE)+k(t.corners.SW)+k(t.corners.SE)] = im;
+        res();
+      };
+      im.onerror = res;
+      const b = t.image.base64;
+      im.src = b.startsWith('data:') ? b : 'data:image/png;base64,' + b;
+    })));
+    return { lut, base: lut['0000'] };
+  }
+
+  // Compose le sol multi-terrain (tuiles PixelLab) depuis la grille de terrain
   async composeGround() {
     if (typeof document === 'undefined' || typeof fetch === 'undefined' || typeof Image === 'undefined') return null;
     const W = this.widthPx, H = this.heightPx, T = CONFIG.TILE;
+    const cols = this.cols, rows = this.rows, terr = MAPIMG.terrain;
     const make = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
     const ground = make(W, H);
     const gx = ground.getContext('2d'); gx.imageSmoothingEnabled = false;
     try {
-      const data = await (await fetch('assets/tiles/grass_path.json')).json();
-      const tiles = data.tileset.tiles;
-      // Charge les 16 images + table de correspondance par coins (upper=chemin)
-      const lut = {};
-      await Promise.all(tiles.map(t => new Promise(res => {
-        const im = new Image();
-        im.onload = () => {
-          const k = (c) => (c === 'upper' ? '1' : '0');
-          const co = t.corners;
-          lut[k(co.NW)+k(co.NE)+k(co.SW)+k(co.SE)] = im;
-          res();
-        };
-        im.onerror = res;
-        const b = t.image.base64;
-        im.src = b.startsWith('data:') ? b : 'data:image/png;base64,' + b;
-      })));
-      // Grille chemin + rendu dual-grid (la tuile dépend des 4 cellules autour du coin)
-      const { grid, cols, rows } = pathGrid();
-      const cell = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows ? 0 : grid[r * cols + c]);
-      for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
-        const key = '' + cell(i-1, j-1) + cell(i, j-1) + cell(i-1, j) + cell(i, j);
-        const im = lut[key] || lut['0000'];
-        if (im) gx.drawImage(im, i*T - T/2, j*T - T/2, T, T);
-      }
+      const [rf, gs, gw, gp] = await Promise.all(
+        ['rough_fairway','grass_sand','grass_water','grass_path'].map(n => this.loadTileset(n)));
+      // 1. Base : rough partout (tuile tout-lower du set rough/fairway)
+      if (rf.base) for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++)
+        gx.drawImage(rf.base, c*T, r*T, T, T);
+      // 2. Couches dual-grid : la tuile dépend des 4 cellules autour du coin
+      const at = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows ? 'r' : terr[r*cols+c]);
+      const layer = (set, isUp) => {
+        for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+          const key = '' + (isUp(at(i-1,j-1))?1:0) + (isUp(at(i,j-1))?1:0) + (isUp(at(i-1,j))?1:0) + (isUp(at(i,j))?1:0);
+          if (key === '0000') continue;                 // tout-lower -> laisse la base
+          const im = set.lut[key] || set.lut['1111'];
+          if (im) gx.drawImage(im, i*T - T/2, j*T - T/2, T, T);
+        }
+      };
+      layer(rf, t => t === 'f');                          // fairway
+      layer(gs, t => t === 's');                          // sable (bunkers)
+      layer(gp, t => t === 'p');                          // chemins / dalles
+      layer(gw, t => t === 'w');                          // eau
     } catch (e) {
-      gx.fillStyle = '#3c8a44'; gx.fillRect(0, 0, W, H);   // repli herbe si tileset indisponible
+      gx.fillStyle = '#6cae54'; gx.fillRect(0, 0, W, H);  // repli si tilesets indisponibles
     }
-    // Features (golf, greens, bunkers, eau, bâtiments, arbres) par-dessus
-    gx.imageSmoothingEnabled = true;
-    paintFeatures(gx);
     return ground;
   }
 
@@ -802,6 +860,7 @@ class NPC {
   render(ctx, camX, camY) {
     const sx = Math.round(this.x - camX), sy = Math.round(this.y - camY);
     if (this.kind === 'dog') drawDog(ctx, sx, sy, this.dir, this.frame, this.color);
+    else if (this.sprite) drawSprite(ctx, this.sprite, sx, sy, 30);
     else drawCharacter(ctx, sx, sy, this.dir, this.frame, this.look, false);
   }
 }
@@ -810,8 +869,12 @@ class NPC {
 class NPCManager {
   constructor() { this.npcs = []; }
 
-  loadNPCs(tilemap) {
-    this.npcs = (tilemap.npcDefs || []).map(def => new NPC(def));
+  loadNPCs(tilemap, sprites) {
+    this.npcs = (tilemap.npcDefs || []).map(def => {
+      const n = new NPC(def);
+      if (sprites && sprites[def.id]) n.sprite = sprites[def.id];
+      return n;
+    });
   }
 
   update(dt, player, tilemap) {
@@ -1041,28 +1104,29 @@ class InputManager {
       ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down',
       z:'up', s:'down', q:'left', d:'right',
       Z:'up', S:'down', Q:'left', D:'right',
-      Enter:'A', ' ':'A', x:'B', X:'B', Escape:'Start',
-      b:'Bike', B:'Bike',
+      Enter:'A', ' ':'A', x:'A', X:'A',     // Parler / Confirmer (= bouton B)
+      Shift:'Run',                           // Courir (= bouton A)
+      Escape:'Start', Tab:'Select',
     };
     document.addEventListener('keydown', e => {
       const k = this.map[e.key] || e.key;
       if (!this.keys[k]) this.justDown[k] = true;
       this.keys[k] = true;
-      e.preventDefault();
+      if (this.map[e.key] || ['Tab',' '].includes(e.key)) e.preventDefault();
     });
     document.addEventListener('keyup', e => {
       const k = this.map[e.key] || e.key;
       this.keys[k] = false;
     });
-
-    // Gamepad support
-    this._gpPrev = {};
-    this._setupGamepad();
+    // Correspondance action -> champ manette tactile (window.__pad)
+    this.pad = { left:'left', right:'right', up:'up', down:'down', A:'talk', Run:'run', Start:'start', Select:'select' };
   }
 
-  isDown(k) { return !!this.keys[k]; }
-  isJustPressed(k) { return !!this.justDown[k]; }
-  flush() { this.justDown = {}; }
+  _padDown(k) { const f = this.pad[k]; return f && typeof window !== 'undefined' && window.__pad ? !!window.__pad[f] : false; }
+  _padJust(k) { const f = this.pad[k]; return f && typeof window !== 'undefined' && window.__padJust ? !!window.__padJust[f] : false; }
+  isDown(k) { return !!this.keys[k] || this._padDown(k); }
+  isJustPressed(k) { return !!this.justDown[k] || this._padJust(k); }
+  flush() { this.justDown = {}; if (typeof window !== 'undefined') window.__padJust = {}; }
 
   _setupGamepad() {
     window.addEventListener('gamepadconnected', () => console.log('Gamepad détecté'));

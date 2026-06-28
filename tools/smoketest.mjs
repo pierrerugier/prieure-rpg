@@ -64,24 +64,17 @@ for (const d of ['right','left','down','up']) {
 }
 ok('le joueur se déplace', moved);
 
-// Vitesse vélo > marche : meilleure distance sur 4 directions depuis le spawn
-function runDir(flag, key){
-  game.player.x=x0; game.player.y=y0; game.player.ownsBike=true; game.player.hasBike=flag;
-  game.input.keys={}; game.input.keys[key]=true;
+// Courir (A/Run) > marche : meilleure distance sur 4 directions depuis le spawn
+function runDir(running, key){
+  game.player.x=x0; game.player.y=y0;
+  game.input.keys={}; game.input.keys[key]=true; if(running) game.input.keys['Run']=true;
   let d=0; for(let i=0;i<8;i++){ const px=game.player.x,py=game.player.y; game.update(0.05); d+=Math.hypot(game.player.x-px,game.player.y-py);}
   game.input.keys={}; return d;
 }
-function bestDist(flag){ return Math.max(...['down','right','up','left'].map(k=>runDir(flag,k))); }
-const dWalk=bestDist(false), dBike=bestDist(true);
-game.player.x=x0; game.player.y=y0; game.player.ownsBike=false; game.player.hasBike=false;
-ok('le vélo va plus vite que la marche', dBike > dWalk * 1.4);
-game.player.hasBike=false; game.player.x=x0; game.player.y=y0;
-
-// Ramassage du vélo
-game.player.x = game.tilemap.bike.x;
-game.player.y = game.tilemap.bike.y;
-game.update(0.016);
-ok('vélo ramassé au contact', game.saveData.player.flags.bike === true && game.player.hasBike);
+function bestDist(running){ return Math.max(...['down','right','up','left'].map(k=>runDir(running,k))); }
+const dWalk=bestDist(false), dRun=bestDist(true);
+game.player.x=x0; game.player.y=y0;
+ok('courir (A) va plus vite que la marche', dRun > dWalk * 1.4);
 
 // Chaque PNJ : on lui parle → dialogue de 2 à 3 lignes (pas de mission)
 function talkLines(npc) {
@@ -105,18 +98,17 @@ talkLines(dog);
 ok('le chien fait « Ouaf »', /ouaf/i.test((game.dialogueMgr.lines.find(l => /ouaf/i.test(l.text)) || {}).text || ''));
 game.dialogueMgr.active = false;
 
-// Vélo activable / désactivable (B)
-game.player.ownsBike = true; game.player.hasBike = false;
-game.input.justDown['Bike'] = true; game.update(0.016);
-const rodeOn = game.player.hasBike;
-game.input.justDown['Bike'] = true; game.update(0.016);
-ok('vélo on/off avec B', rodeOn === true && game.player.hasBike === false);
+// Inventaire (Select) ouvre/ferme
+game.input.justDown['Select'] = true; game.update(0.016);
+const invOn = game.invOpen;
+game.input.justDown['Select'] = true; game.update(0.016);
+ok('inventaire SELECT ouvre/ferme', invOn === true && game.invOpen === false);
 
-// Menu pause (Échap)
+// Menu pause (Start)
 game.input.justDown['Start'] = true; game.update(0.016);
 const wasPaused = game.paused;
 game.input.justDown['Start'] = true; game.update(0.016);
-ok('menu pause s\'ouvre/ferme (Échap)', wasPaused === true && game.paused === false);
+ok('pause START ouvre/ferme', wasPaused === true && game.paused === false);
 
 console.log('\n── RÉSULTATS DU SMOKE TEST ──');
 let pass=0;
