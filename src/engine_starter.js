@@ -6,7 +6,7 @@
 import { NPCS, MISSIONS, DIALOGUES, COLLECTIBLES, GOLF_HOLES, MAP_ZONES }
   from './data_complete.js';
 import { buildWorld } from './world.js';
-import { MAPIMG } from './map_data.js';
+import { getLevel } from './level.js';
 
 // ── CONFIG ──────────────────────────────────────────────────
 const CONFIG = {
@@ -722,8 +722,8 @@ class Tilemap {
     this.bike     = world.bike;
     this.npcDefs  = world.npcs;
     this.golf     = world.golf;
-    // Sol = la VRAIE carte (image HD), rendu exact
-    this.ground = await this.loadGround(world.groundSrc);
+    // Sol = niveau dessiné (terrains auto-raccordés + objets)
+    this.ground = await this.composeGround();
   }
 
   // Charge un tileset Wang PixelLab -> { lut: clé coins(upper=1) -> Image, base: tuile tout-lower }
@@ -744,51 +744,54 @@ class Tilemap {
     return { lut, base: lut['0000'] };
   }
 
-  // Compose le sol multi-terrain (tuiles PixelLab) depuis la grille de terrain
+  // Compose le sol : terrains auto-raccordés (Wang) + objets, depuis le niveau
   async composeGround() {
     if (typeof document === 'undefined' || typeof fetch === 'undefined' || typeof Image === 'undefined') return null;
-    const W = this.widthPx, H = this.heightPx, T = CONFIG.TILE;
-    const cols = this.cols, rows = this.rows, terr = MAPIMG.terrain;
+    const T = CONFIG.TILE, lv = getLevel(), cols = lv.cols, rows = lv.rows, terr = lv.terrain;
+    const W = lv.width, H = lv.height;
     const make = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
     const ground = make(W, H);
     const gx = ground.getContext('2d'); gx.imageSmoothingEnabled = false;
+    const at = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows ? 'g' : terr[r*cols+c]);
     try {
-      const [rf, gs, gw, gp] = await Promise.all(
-        ['rough_fairway','grass_sand','grass_water','grass_path'].map(n => this.loadTileset(n)));
-      // 1. Base : rough partout (tuile tout-lower du set rough/fairway)
-      if (rf.base) for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++)
-        gx.drawImage(rf.base, c*T, r*T, T, T);
-      // 2. Couches dual-grid : la tuile dépend des 4 cellules autour du coin
-      const at = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows ? 'r' : terr[r*cols+c]);
-      const layer = (set, isUp) => {
+      // tilesets (lower = herbe) ; certains peuvent manquer -> ignorés
+      const names = ['grass_fairway','grass_sand','grass_water','grass_gravel'];
+      const sets = {};
+      await Promise.all(names.map(async n => { try { sets[n] = await this.loadTileset(n); } catch {} }));
+      const baseTile = (sets.grass_fairway || sets.grass_sand || sets.grass_water || {}).base;
+      // 1. Base herbe partout
+      if (baseTile) for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) gx.drawImage(baseTile, c*T, r*T, T, T);
+      else { gx.fillStyle = '#74b85a'; gx.fillRect(0, 0, W, H); }
+      // 2. Couches dual-grid
+      const layer = (set, ch) => { if (!set) return;
         for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
-          const key = '' + (isUp(at(i-1,j-1))?1:0) + (isUp(at(i,j-1))?1:0) + (isUp(at(i-1,j))?1:0) + (isUp(at(i,j))?1:0);
-          if (key === '0000') continue;                 // tout-lower -> laisse la base
-          const im = set.lut[key] || set.lut['1111'];
-          if (im) gx.drawImage(im, i*T - T/2, j*T - T/2, T, T);
+          const key = '' + (at(i-1,j-1)===ch?1:0)+(at(i,j-1)===ch?1:0)+(at(i-1,j)===ch?1:0)+(at(i,j)===ch?1:0);
+          if (key === '0000') continue;
+          const im = set.lut[key] || set.lut['1111']; if (im) gx.drawImage(im, i*T-T/2, j*T-T/2, T, T);
         }
       };
-      layer(rf, t => t === 'f');                          // fairway
-      layer(gs, t => t === 's');                          // sable (bunkers)
-      layer(gp, t => t === 'p');                          // chemins / dalles
-      layer(gw, t => t === 'w');                          // eau
-      // 3. Objets : arbres sur la forêt + fleurs éparses sur le rough
-      const [pine, oak, fr, fy, fp] = await Promise.all(
-        ['pine','oak','flower_red','flower_yellow','flower_pink'].map(n => this.loadGround(`assets/sprites/${n}.png`)));
-      const hash = (c, r) => (((c*73856093) ^ (r*19349663)) >>> 0);
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-        const t = terr[r*cols+c];
-        if (t === 't' && (pine || oak)) {
-          const im = (hash(c,r) % 3 === 0 ? pine : oak) || pine || oak;
-          const th = 30, sc = th / im.height, w = im.width * sc;
-          gx.drawImage(im, Math.round(c*T + T/2 - w/2), r*T + T - th, Math.round(w), th);
-        } else if (t === 'r' && hash(c,r) % 47 === 0) {
-          const fl = [fr, fy, fp][hash(c,r) % 3];
-          if (fl) { const fh = 12, sc = fh / fl.height; gx.drawImage(fl, c*T, r*T + 2, Math.round(fl.width*sc), fh); }
-        }
+      layer(sets.grass_gravel, 'v'); layer(sets.grass_fairway, 'f');
+      layer(sets.grass_sand, 'd');   layer(sets.grass_water, 'w');
+      // 3. Objets (sprites) — chargés puis dessinés triés par Y (profondeur)
+      const need = [...new Set(lv.objects.map(o => o.t))];
+      const imgs = {};
+      await Promise.all(need.map(t => new Promise(res => {
+        const im = new Image(); im.onload = () => { imgs[t] = im; res(); }; im.onerror = res;
+        im.src = `assets/sprites/${t}.png`;
+      })));
+      const SZ = { abbey:[230,156], manor:[120,96], pine:[34,40], oak:[34,36], tree_pine2:[40,46],
+                   tree_oak2:[42,42], hedge:[18,18], stonewall:[18,16], flag:[18,26], lamp:[16,30],
+                   car:[30,20], bench:[26,18], rock:[24,18], bush:[22,18],
+                   flower_red:[16,14], flower_yellow:[16,14], flower_pink:[16,14] };
+      for (const o of lv.objects.slice().sort((a,b) => a.y - b.y)) {
+        const im = imgs[o.t]; if (!im) continue;
+        let w, h;
+        if (o.w > 1) { w = o.w*T; h = im.height * (w/im.width); }       // maisons/abbaye : largeur en tiles
+        else { const s = SZ[o.t] || [24,24]; w = s[0]; h = s[1]; }
+        gx.drawImage(im, Math.round(o.x - w/2), Math.round(o.y - h), Math.round(w), Math.round(h));
       }
     } catch (e) {
-      gx.fillStyle = '#6cae54'; gx.fillRect(0, 0, W, H);  // repli si tilesets indisponibles
+      gx.fillStyle = '#74b85a'; gx.fillRect(0, 0, W, H);
     }
     return ground;
   }

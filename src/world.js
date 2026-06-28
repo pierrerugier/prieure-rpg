@@ -1,16 +1,13 @@
 // ═══════════════════════════════════════════════════════════════
-// LE PRIEURÉ RPG — MONDE = carte image reconstruite en TUILES PixelLab
-// Terrain classé depuis assets/map.png (src/map_data.js), rendu avec les
-// tilesets PixelLab (rough/fairway/sable/eau/chemin). Collision = terrain.
+// MONDE — adossé au niveau dessiné à la main (src/level.js).
+// Collision = level.solid ; placement des entités sur cases libres.
 // ═══════════════════════════════════════════════════════════════
+import { getLevel, TILE as LTILE } from './level.js';
 
-import { MAPIMG } from './map_data.js';
-
-export const TILE = MAPIMG.tile;
-const W = MAPIMG.w, H = MAPIMG.h, COLS = MAPIMG.cols, ROWS = MAPIMG.rows;
-export const TERRAIN = MAPIMG.terrain;
-const SOLID = new Uint8Array(COLS * ROWS);
-for (let i = 0; i < SOLID.length; i++) SOLID[i] = MAPIMG.solid.charCodeAt(i) === 49 ? 1 : 0;
+export const TILE = LTILE;
+const L = getLevel();
+const W = L.width, H = L.height, COLS = L.cols, ROWS = L.rows;
+const SOLID = L.solid;
 
 function isSolidTile(c, r) {
   if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return true;
@@ -18,7 +15,7 @@ function isSolidTile(c, r) {
 }
 function snap(x, y) {
   const c0 = Math.floor(x / TILE), r0 = Math.floor(y / TILE);
-  for (let rad = 0; rad < 50; rad++)
+  for (let rad = 0; rad < 60; rad++)
     for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) {
       if (Math.max(Math.abs(dr), Math.abs(dc)) !== rad) continue;
       const c = c0 + dc, r = r0 + dr;
@@ -39,23 +36,23 @@ const LOOKS = {
   pA:{hair:'#bcbcbc',skin:'#e6c8a2',shirt:'#7a8a6a',pants:'#56564e',shoes:'#3a3a30'},
   pB:{hair:'#cfcfcf',skin:'#dcbc94',shirt:'#9a7a6a',pants:'#4a4a4a',shoes:'#2a2a2a'},
 };
-// Le hameau est en haut-gauche de la carte ; on y place la bande.
+// PNJ dans le hameau (allée centrale) — coords en px
+const P = (cx, cy) => ({ x: cx*TILE+TILE/2, y: cy*TILE+TILE/2 });
 function npcDefs() {
   return [
-    { id:'victor',  x:560, y:430, look:LOOKS.victor,  idle:'victor_greet' },
-    { id:'charles', x:640, y:440, look:LOOKS.charles, idle:'charles_greet' },
-    { id:'margot',  x:600, y:520, look:LOOKS.margot,  idle:'margot_greet', wander:true },
-    { id:'antoine', x:700, y:470, look:LOOKS.antoine, idle:'antoine_greet' },
-    { id:'oscar',   x:520, y:560, look:LOOKS.oscar,   idle:'oscar_greet' },
-    { id:'louis',   x:760, y:520, look:LOOKS.louis,   idle:'louis_greet' },
-    { id:'kupi',    x:840, y:470, look:LOOKS.kupi,    idle:'kupi_greet' },
-    { id:'paul',    x:480, y:470, look:LOOKS.paul,    idle:'paul_greet' },
-    { id:'dog1', kind:'dog', name:'le chien', x:680, y:600, color:'#8a6038', wander:true, range:48 },
-    { id:'dog2', kind:'dog', name:'le chien', x:900, y:560, color:'#2a2a2a', wander:true, range:48 },
-    { id:'passant1', kind:'passant', name:'Mme Lévêque', x:560, y:640, look:LOOKS.pA, wander:true, range:80,
+    { id:'victor',  ...P(20,28), look:LOOKS.victor,  idle:'victor_greet' },
+    { id:'charles', ...P(34,28), look:LOOKS.charles, idle:'charles_greet' },
+    { id:'margot',  ...P(27,35), look:LOOKS.margot,  idle:'margot_greet', wander:true },
+    { id:'antoine', ...P(44,28), look:LOOKS.antoine, idle:'antoine_greet' },
+    { id:'oscar',   ...P(14,35), look:LOOKS.oscar,   idle:'oscar_greet' },
+    { id:'louis',   ...P(40,42), look:LOOKS.louis,   idle:'louis_greet' },
+    { id:'kupi',    ...P(48,30), look:LOOKS.kupi,    idle:'kupi_greet' },
+    { id:'paul',    ...P(14,42), look:LOOKS.paul,    idle:'paul_greet' },
+    { id:'dog1', kind:'dog', name:'le chien', ...P(30,33), color:'#8a6038', wander:true, range:48 },
+    { id:'passant1', kind:'passant', name:'Mme Lévêque', ...P(24,38), look:LOOKS.pA, wander:true, range:64,
       idle:[{speaker:'Mme Lévêque',text:"Ah, les jeunes ! Profitez-en, c'est le plus bel été."},
             {speaker:'Mme Lévêque',text:"Vous n'auriez pas vu mon chien ? Il file vers le golf."}]},
-    { id:'passant2', kind:'passant', name:'M. Grémont', x:740, y:640, look:LOOKS.pB, wander:true, range:80,
+    { id:'passant2', kind:'passant', name:'M. Grémont', ...P(40,35), look:LOOKS.pB, wander:true, range:64,
       idle:[{speaker:'M. Grémont',text:"Belle journée pour marcher, n'est-ce pas ?"},
             {speaker:'M. Grémont',text:"De mon temps, on rentrait à la nuit tombée."}]},
   ];
@@ -64,26 +61,23 @@ function npcDefs() {
 export function buildWorld() {
   const occupied = new Set();
   function place(x, y) {
-    const s = snap(x, y);
-    const c0 = Math.floor(s.x/TILE), r0 = Math.floor(s.y/TILE);
-    for (let rad = 0; rad < 30; rad++)
+    const s = snap(x, y); const c0 = Math.floor(s.x/TILE), r0 = Math.floor(s.y/TILE);
+    for (let rad = 0; rad < 24; rad++)
       for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) {
         if (Math.max(Math.abs(dr), Math.abs(dc)) !== rad) continue;
-        const c = c0+dc, r = r0+dr;
-        if (isSolidTile(c, r)) continue;
-        const k = c + ',' + r; if (occupied.has(k)) continue;
-        occupied.add(k); return { x: c*TILE+TILE/2, y: r*TILE+TILE/2 };
+        const c = c0+dc, r = r0+dr; if (isSolidTile(c, r)) continue;
+        const k = c+','+r; if (occupied.has(k)) continue; occupied.add(k);
+        return { x: c*TILE+TILE/2, y: r*TILE+TILE/2 };
       }
     return s;
   }
-  const spawn = place(620, 560);
-  const bike  = place(560, 600);
+  const spawn = place(28, 33);            // place du hameau
+  const bike  = place(34, 35);
   return {
-    width: W, height: H, cols: COLS, rows: ROWS, solid: SOLID, terrain: TERRAIN,
-    label: 'Golf du Prieuré', spawn, bike,
+    width: W, height: H, cols: COLS, rows: ROWS, solid: SOLID, level: L,
+    label: 'Le Prieuré', spawn, bike,
     npcs: npcDefs().map(n => ({ ...n, ...place(n.x, n.y) })),
-    golf: { x: W*0.6, y: H*0.55 },
-    groundSrc: 'assets/map_world.png',   // la VRAIE carte en fond (rendu exact)
+    golf: { x: W*0.6, y: H*0.6 },
   };
 }
 export { W as WORLD_W, H as WORLD_H };
