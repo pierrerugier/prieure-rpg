@@ -239,17 +239,21 @@ function drawSprite(ctx, img, cx, cy, targetH) {
   ctx.drawImage(img, Math.round(cx - w/2), Math.round(cy + 10 - h), Math.round(w), Math.round(h));
 }
 // Sprite directionnel (set {down,up,left,single}) ; 'right' = 'left' miroir
-function drawDirSprite(ctx, set, cx, cy, dir, targetH) {
+// bob = soulèvement vertical (cycle de marche) ; l'ombre reste au sol et rétrécit un peu au saut
+function drawDirSprite(ctx, set, cx, cy, dir, targetH, bob = 0) {
   if (!set) return;
   let img = set.down, flip = false;
   if (dir === 'up') img = set.up; else if (dir === 'left') img = set.left;
   else if (dir === 'right') { img = set.left; flip = true; }
   if (!img) img = set.single || set.down;
   const h = targetH || 30, sc = h / img.height, w = img.width * sc;
-  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(Math.round(cx - w*0.28), Math.round(cy + 8), Math.round(w*0.56), 3);
+  const shw = w * 0.56 * (1 - bob * 0.06);   // ombre rétrécit légèrement quand le perso se soulève
+  ctx.fillStyle = `rgba(0,0,0,${0.22 - bob * 0.02})`;
+  ctx.fillRect(Math.round(cx - shw/2), Math.round(cy + 8), Math.round(shw), 3);
+  const top = Math.round(cy + 10 - h - bob);
   if (flip) { ctx.save(); ctx.translate(Math.round(cx), 0); ctx.scale(-1, 1);
-    ctx.drawImage(img, Math.round(-w/2), Math.round(cy + 10 - h), Math.round(w), Math.round(h)); ctx.restore(); }
-  else ctx.drawImage(img, Math.round(cx - w/2), Math.round(cy + 10 - h), Math.round(w), Math.round(h));
+    ctx.drawImage(img, Math.round(-w/2), top, Math.round(w), Math.round(h)); ctx.restore(); }
+  else ctx.drawImage(img, Math.round(cx - w/2), top, Math.round(w), Math.round(h));
 }
 
 // Petite icône de vélo posé (au sol / HUD), ~16×11 en (x,y) coin haut-gauche
@@ -762,7 +766,8 @@ class Player {
   render(ctx, camX, camY) {
     const sx = Math.round(this.x - camX);
     const sy = Math.round(this.y - camY);
-    if (this.sprite) drawDirSprite(ctx, this.sprite, sx, sy, this.dir, 46);
+    const bob = (this.moving && !this.hasBike) ? (this.frame % 2 ? 2 : 0) : 0;  // sautillement de marche
+    if (this.sprite) drawDirSprite(ctx, this.sprite, sx, sy, this.dir, 46, bob);
     else drawCharacter(ctx, sx, sy, this.dir, this.moving ? this.frame : 0, PLAYER_LOOK, false);
   }
 }
@@ -959,7 +964,7 @@ class NPC {
   render(ctx, camX, camY) {
     const sx = Math.round(this.x - camX), sy = Math.round(this.y - camY);
     if (this.kind === 'dog') drawDog(ctx, sx, sy, this.dir, this.frame, this.color);
-    else if (this.sprite) drawDirSprite(ctx, this.sprite, sx, sy, this.dir, 44);
+    else if (this.sprite) drawDirSprite(ctx, this.sprite, sx, sy, this.dir, 44, this.frame);  // bob léger (respiration/marche)
     else drawCharacter(ctx, sx, sy, this.dir, this.frame, this.look, false);
   }
 }
