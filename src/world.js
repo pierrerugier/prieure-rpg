@@ -78,8 +78,8 @@ export function buildWorld() {
       }
     return s;
   }
-  const spawn = place(28, 33);            // place du hameau
-  const bike  = place(34, 35);
+  const spawn = place(28*TILE, 33*TILE);  // place du hameau (coords px)
+  const bike  = place(34*TILE, 35*TILE);
   return {
     width: W, height: H, cols: COLS, rows: ROWS, solid: SOLID, level: L,
     label: 'Le Prieuré', spawn, bike,

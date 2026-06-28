@@ -822,8 +822,8 @@ class Tilemap {
       };
       layer(sets.grass_gravel, 'v'); layer(sets.grass_fairway, 'f');
       layer(sets.grass_sand, 'd');   layer(sets.grass_water, 'w');
-      // 3. Objets (sprites) — chargés puis dessinés triés par Y (profondeur)
-      const need = [...new Set(lv.objects.map(o => o.t))];
+      // 3. Sprites (objets + déco) — chargés une fois
+      const need = [...new Set([...lv.objects.map(o => o.t), ...(lv.deco || []).map(d => d.t)])];
       const imgs = {};
       await Promise.all(need.map(t => new Promise(res => {
         const im = new Image(); im.onload = () => { imgs[t] = im; res(); }; im.onerror = res;
@@ -831,12 +831,19 @@ class Tilemap {
       })));
       const SZ = { abbey:[230,156], manor:[120,96], pine:[34,40], oak:[34,36], tree_pine2:[40,46],
                    tree_oak2:[42,42], hedge:[18,18], stonewall:[18,16], flag:[18,26], lamp:[16,30],
-                   car:[30,20], bench:[26,18], rock:[24,18], bush:[22,18],
-                   flower_red:[16,14], flower_yellow:[16,14], flower_pink:[16,14] };
+                   car:[30,20], bench:[26,18], rock:[24,18], bush:[16,13],
+                   flower_red:[13,11], flower_yellow:[13,11], flower_pink:[13,11] };
+      // 3a. Déco au sol (petite, non solide) sous les objets
+      for (const d of (lv.deco || [])) {
+        const im = imgs[d.t]; if (!im) continue;
+        const s = SZ[d.t] || [14,12];
+        gx.drawImage(im, Math.round(d.x - s[0]/2), Math.round(d.y - s[1]), s[0], s[1]);
+      }
+      // 3b. Objets, triés par Y (profondeur)
       for (const o of lv.objects.slice().sort((a,b) => a.y - b.y)) {
         const im = imgs[o.t]; if (!im) continue;
         let w, h;
-        if (o.w > 1) { w = o.w*T; h = im.height * (w/im.width); }       // maisons/abbaye : largeur en tiles
+        if (o.w > 1) { w = o.w*T; h = im.height * (w/im.width); }
         else { const s = SZ[o.t] || [24,24]; w = s[0]; h = s[1]; }
         gx.drawImage(im, Math.round(o.x - w/2), Math.round(o.y - h), Math.round(w), Math.round(h));
       }
