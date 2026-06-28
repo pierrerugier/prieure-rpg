@@ -7,6 +7,7 @@ import { NPCS, MISSIONS, DIALOGUES, COLLECTIBLES, GOLF_HOLES, MAP_ZONES }
   from './data_complete.js';
 import { buildWorld } from './world.js';
 import { getLevel } from './level.js';
+import { QUESTS } from './missions.js';
 
 // ── CONFIG ──────────────────────────────────────────────────
 const CONFIG = {
@@ -341,7 +342,38 @@ class Game {
     this.camera.update(this.player, this.tilemap);
     this.npcMgr.update(dt, this.player, this.tilemap);
     this.checkTriggers();
+    this.questReach();
     this.input.flush();
+  }
+
+  // ── QUÊTES ────────────────────────────────────────────────
+  quest() { if (!this.saveData.quest) this.saveData.quest = { i:0, k:0, talked:[] }; return this.saveData.quest; }
+  activeQuest() { const q = this.quest(); return QUESTS[q.i] || null; }
+  activeObjective() { const Q = this.activeQuest(); return Q ? Q.objectives[this.quest().k] : null; }
+  questTalk(id) {
+    const Q = this.activeQuest(), o = this.activeObjective(); if (!Q || !o) return;
+    if (o.type === 'talk' && o.target === id) this.advanceObj();
+    else if (o.type === 'talkAll' && o.targets.includes(id)) {
+      const tk = this.quest().talked;
+      if (!tk.includes(id)) { tk.push(id); this.showMessage(`Bande : ${tk.length}/${o.targets.length}`); this.save(); }
+      if (o.targets.every(t => tk.includes(t))) this.advanceObj();
+    }
+  }
+  questReach() {
+    const o = this.activeObjective(); if (!o || o.type !== 'reach') return;
+    if (Math.hypot(this.player.x - o.x, this.player.y - o.y) < o.r) this.advanceObj();
+  }
+  advanceObj() {
+    const q = this.quest(), Q = QUESTS[q.i];
+    q.k++; q.talked = [];
+    if (q.k >= Q.objectives.length) {
+      this.saveData.player.reputation = Math.min(5, (this.saveData.player.reputation || 0) + Q.reward);
+      this.showMessage('★ Mission accomplie : ' + Q.title, 3.2);
+      q.i++; q.k = 0;
+    } else {
+      this.showMessage('Objectif validé !', 1.8);
+    }
+    this.save();
   }
 
   checkTriggers() {
@@ -373,8 +405,9 @@ class Game {
       ], npc, this);
       return;
     }
-    // PNJ : 2-3 lignes de salutation (clé de dialogue ou lignes inline)
+    // PNJ : réplique d'ambiance (pool aléatoire) + avancement de quête
     this.dialogueMgr.start(npc.idle, npc, this);
+    this.questTalk(npc.id);
   }
 
   handleTrigger(trigger) {
@@ -460,6 +493,22 @@ class Game {
     b.textAlign = 'center';
     b.fillText(this.tilemap.currentZoneLabel, 120, 12);
     b.textAlign = 'left';
+
+    // Bannière de quête (haut-gauche) : mission + objectif courant
+    const Q = this.activeQuest(), o = this.activeObjective();
+    if (Q && o) {
+      b.fillStyle = 'rgba(0,0,0,0.6)'; b.fillRect(4, 4, 200, 24);
+      b.fillStyle = '#f8d050'; b.font = 'bold 7px monospace';
+      b.fillText('✦ ' + Q.title, 9, 14);
+      b.fillStyle = '#dfe8df'; b.font = '7px monospace';
+      let t = o.text;
+      if (o.type === 'talkAll') t += `  (${this.quest().talked.length}/${o.targets.length})`;
+      b.fillText(t.length > 34 ? t.slice(0, 33) + '…' : t, 9, 23);
+    } else if (!Q) {
+      b.fillStyle = 'rgba(0,0,0,0.55)'; b.fillRect(4, 4, 150, 14);
+      b.fillStyle = '#a0e0a0'; b.font = '7px monospace';
+      b.fillText("Été libre — explore le Prieuré", 9, 14);
+    }
 
     // Indicateur vélo (bas-gauche) — visible dès qu'on le possède
     if (this.player.ownsBike) {
@@ -556,6 +605,7 @@ class Game {
       version: '1.0',
       player: { name: 'Pierre', reputation: 0, inventory: [], flags: {} },
       missions: { active: [], completed: [], failed: [] },
+      quest: { i: 0, k: 0, talked: [] },
       collectibles: { golf_balls: [], old_photos: [], beer_caps: [], pokemon_cards: [] },
       npc_states: {},
       world: { time: 'morning', day: 1 },

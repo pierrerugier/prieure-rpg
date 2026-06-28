@@ -84,13 +84,23 @@ function talkLines(npc) {
   game.update(0.016);
   return game.dialogueMgr.active ? game.dialogueMgr.lines.length : 0;
 }
+const { DIALOGUES } = await import('../src/data_complete.js');
+const { QUESTS } = await import('../src/missions.js');
 const victor = game.npcMgr.npcs.find(n => n.id === 'victor');
 talkLines(victor);
 ok('dialogue de Victor déclenché', game.dialogueMgr.active);
-ok('1re réplique de Victor', /nouveau/i.test(game.dialogueMgr.lines[0]?.text || ''));
-const everyHas23 = game.npcMgr.npcs.every(n => { const l = talkLines(n); return l >= 2 && l <= 3; });
-ok('chaque personnage a 2-3 lignes de dialogue', everyHas23);
-ok('aucune mission active (mises de côté)', game.saveData.missions.active.length === 0);
+ok('chaque personnage a des dialogues', game.npcMgr.npcs.every(n => talkLines(n) >= 1));
+ok('20+ dialogues / ami', ['victor','charles','margot','antoine','oscar','louis','kupi','paul']
+   .every(id => (DIALOGUES[id + '_greet'] || []).length >= 20));
+ok('5 missions définies', QUESTS.length === 5);
+
+// Quêtes : parler à Victor avance la mission 1
+game.dialogueMgr.active = false;
+game.saveData.quest = { i:0, k:0, talked:[] };
+const before = game.saveData.quest.i;
+game.player.x = victor.x; game.player.y = victor.y + 16; game.player.dir = 'up';
+game.input.justDown['A'] = true; game.update(0.016);
+ok('quête 1 avance en parlant à Victor', game.saveData.quest.i === before + 1);
 
 // Chien → « Ouaf ouaf ! »
 const dog = game.npcMgr.npcs.find(n => n.kind === 'dog');
