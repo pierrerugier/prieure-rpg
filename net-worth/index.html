@@ -1,0 +1,1170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relevé de patrimoine</title>
+<style>
+/* ------------------------------------------------------------------ *
+ *  Tokens — palette claire complète sur :root, redéfinie deux fois
+ *  pour le sombre (préférence système non stampée + choix explicite).
+ * ------------------------------------------------------------------ */
+:root {
+  --ground:        #f4f5f8;
+  --surface:       #ffffff;
+  --surface-sunk:  #eceef4;
+  --rule:          #dcdfe9;
+  --rule-strong:   #c3c8d8;
+  --ink:           #161a24;
+  --ink-soft:      #454c60;
+  --ink-mute:      #6d7488;
+  --accent:        #2c3fa8;
+  --accent-soft:   #5a72d8;
+  --accent-faint:  #9aa9e8;
+  --accent-wash:   #e8ebf9;
+  --positive:      #2f6b4f;
+  --negative:      #a3341f;
+  --negative-soft: #c9694f;
+  --field:         #ffffff;
+  --field-line:    #ccd1e0;
+  --shadow:        0 1px 2px rgba(22, 26, 36, .05), 0 8px 24px -16px rgba(22, 26, 36, .28);
+
+  --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans:  ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono:  ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:        #12151c;
+    --surface:       #191d27;
+    --surface-sunk:  #10131a;
+    --rule:          #2a3040;
+    --rule-strong:   #3a4256;
+    --ink:           #e6e9f2;
+    --ink-soft:      #b3b9cc;
+    --ink-mute:      #868da3;
+    --accent:        #8b9cf5;
+    --accent-soft:   #6a7de0;
+    --accent-faint:  #414d8f;
+    --accent-wash:   #1d2337;
+    --positive:      #6fbf8f;
+    --negative:      #e0806a;
+    --negative-soft: #a8543f;
+    --field:         #10131a;
+    --field-line:    #333b4d;
+    --shadow:        0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+  }
+}
+:root[data-theme="dark"] {
+  --ground:        #12151c;
+  --surface:       #191d27;
+  --surface-sunk:  #10131a;
+  --rule:          #2a3040;
+  --rule-strong:   #3a4256;
+  --ink:           #e6e9f2;
+  --ink-soft:      #b3b9cc;
+  --ink-mute:      #868da3;
+  --accent:        #8b9cf5;
+  --accent-soft:   #6a7de0;
+  --accent-faint:  #414d8f;
+  --accent-wash:   #1d2337;
+  --positive:      #6fbf8f;
+  --negative:      #e0806a;
+  --negative-soft: #a8543f;
+  --field:         #10131a;
+  --field-line:    #333b4d;
+  --shadow:        0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(20px, 4vw, 48px) clamp(16px, 4vw, 40px) 72px;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(24px, 3vw, 36px);
+}
+
+/* --- éléments typographiques partagés --- */
+.eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Bandeau relevé
+ * ------------------------------------------------------------------ */
+.masthead {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 28px;
+  padding-bottom: 22px;
+  border-bottom: 2px solid var(--ink);
+}
+.masthead h1 {
+  margin: 4px 0 0;
+  font-family: var(--serif);
+  font-size: clamp(28px, 4.6vw, 42px);
+  font-weight: 600;
+  letter-spacing: -.015em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+.masthead__stamp {
+  margin: 10px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.masthead__figure { text-align: right; }
+.bignum {
+  margin: 6px 0 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(34px, 7vw, 60px);
+  font-weight: 600;
+  letter-spacing: -.03em;
+  line-height: 1;
+}
+.bignum.is-negative { color: var(--negative); }
+.masthead__delta {
+  margin: 8px 0 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.masthead__delta .up   { color: var(--positive); }
+.masthead__delta .down { color: var(--negative); }
+
+/* ------------------------------------------------------------------ *
+ *  Tableau de bord : stats + barres actifs/dettes à la même échelle
+ * ------------------------------------------------------------------ */
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+  gap: clamp(20px, 3vw, 34px);
+  align-items: start;
+}
+
+.scale { display: flex; flex-direction: column; gap: 18px; }
+.scale__row { display: flex; flex-direction: column; gap: 7px; }
+.scale__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.scale__head .num { font-size: 15px; font-weight: 600; }
+.bar {
+  display: flex;
+  height: 26px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface-sunk);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.bar__seg {
+  min-width: 0;
+  transition: width .35s cubic-bezier(.4, 0, .2, 1);
+}
+.bar__seg[data-k="immo"]   { background: var(--accent); }
+.bar__seg[data-k="place"]  { background: var(--accent-soft); }
+.bar__seg[data-k="autre"]  { background: var(--accent-faint); }
+.bar__seg[data-k="credit"] { background: var(--negative); }
+.bar__seg[data-k="dette"]  { background: var(--negative-soft); }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+.ratio { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ratio .num { font-size: 22px; font-weight: 600; }
+.spark { display: block; width: 100%; height: 62px; overflow: visible; }
+.spark__empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  line-height: 1.45;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Sections éditables
+ * ------------------------------------------------------------------ */
+.sheet {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.sheet__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--accent-wash);
+}
+.sheet__title {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+.sheet__sub {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  max-width: 62ch;
+}
+.sheet__total {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sheet__body { display: flex; flex-direction: column; }
+.sheet__foot {
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--rule);
+}
+.sheet__empty {
+  padding: 22px 20px;
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-mute);
+}
+
+/* lignes simples : libellé / montant / quote-part / part */
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px 92px 130px 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--rule);
+}
+.line:last-child { border-bottom: 0; }
+.line__key {
+  display: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.line__out {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-align: right;
+  padding-right: 4px;
+}
+.line__out.is-debt { color: var(--negative); }
+
+/* fiche bien immobilier */
+.estate {
+  padding: 18px 20px 20px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.estate:last-child { border-bottom: 0; }
+.estate__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.estate__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 12px 14px;
+}
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.field__hint {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  font-family: var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+}
+.estate__calc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  padding: 11px 14px;
+  background: var(--surface-sunk);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.estate__calc b {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-left: auto;
+  white-space: nowrap;
+}
+.estate__calc b.is-negative { color: var(--negative); }
+
+/* --- contrôles --- */
+input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--field-line);
+  border-radius: 4px;
+}
+input.num-in {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+input[type="text"]:hover { border-color: var(--rule-strong); }
+input[type="text"]:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+input.name-in {
+  font-weight: 500;
+  background: transparent;
+  border-color: transparent;
+  padding-left: 4px;
+}
+input.name-in:hover  { border-color: var(--field-line); background: var(--field); }
+input.name-in:focus  { border-color: var(--field-line); background: var(--field); }
+
+button {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--field-line);
+  border-radius: 4px;
+  padding: 7px 13px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+.btn-add {
+  font-weight: 600;
+  border-style: dashed;
+  color: var(--ink-soft);
+}
+.btn-del {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  line-height: 1;
+  font-size: 17px;
+  color: var(--ink-mute);
+  border-color: transparent;
+  background: transparent;
+  justify-self: end;
+}
+.btn-del:hover { color: var(--negative); border-color: var(--negative); }
+
+/* ------------------------------------------------------------------ *
+ *  Historique + pied de page
+ * ------------------------------------------------------------------ */
+.history { width: 100%; border-collapse: collapse; }
+.history th, .history td {
+  padding: 9px 20px;
+  text-align: right;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+.history th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.history th:first-child, .history td:first-child { text-align: left; }
+.history tbody td { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13.5px; }
+.history tbody tr:last-child td { border-bottom: 0; }
+.history .up   { color: var(--positive); }
+.history .down { color: var(--negative); }
+.scroll-x { overflow-x: auto; }
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.toolbar__note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-mute);
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .masthead { grid-template-columns: 1fr; align-items: start; }
+  .masthead__figure { text-align: left; }
+  .board { grid-template-columns: 1fr; }
+  .line {
+    grid-template-columns: 1fr auto;
+    gap: 6px 12px;
+    padding: 14px 16px;
+  }
+  .line > * { grid-column: 1 / -1; }
+  .line__key { display: block; margin-top: 6px; }
+  .line__out { text-align: left; font-size: 16px; }
+  /* le libellé et sa croix partagent la première rangée */
+  .line > input.name-in { grid-column: 1; grid-row: 1; }
+  .line > .btn-del { grid-column: 2; grid-row: 1; justify-self: end; }
+  .sheet__head, .sheet__foot, .estate { padding-left: 16px; padding-right: 16px; }
+  .history th, .history td { padding-left: 16px; padding-right: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">Relevé de patrimoine</p>
+      <h1>Net worth</h1>
+      <p class="masthead__stamp" id="stamp"></p>
+    </div>
+    <div class="masthead__figure">
+      <p class="label">Valeur nette — ma part</p>
+      <p class="bignum num" id="netTotal">—</p>
+      <p class="masthead__delta" id="netDelta"></p>
+    </div>
+  </header>
+
+  <section class="board" aria-label="Synthèse">
+    <div class="scale">
+      <div class="scale__row">
+        <div class="scale__head">
+          <span class="label">Actifs bruts (ma quote-part)</span>
+          <span class="num" id="sumAssets">—</span>
+        </div>
+        <div class="bar" id="barAssets" role="img" aria-label="Répartition des actifs"></div>
+        <div class="legend">
+          <span><i style="background:var(--accent)"></i>Immobilier</span>
+          <span><i style="background:var(--accent-soft)"></i>Placements</span>
+          <span><i style="background:var(--accent-faint)"></i>Autres actifs</span>
+        </div>
+      </div>
+      <div class="scale__row">
+        <div class="scale__head">
+          <span class="label">Dettes (ma quote-part)</span>
+          <span class="num" id="sumDebts">—</span>
+        </div>
+        <div class="bar" id="barDebts" role="img" aria-label="Répartition des dettes"></div>
+        <div class="legend">
+          <span><i style="background:var(--negative)"></i>Crédits immo</span>
+          <span><i style="background:var(--negative-soft)"></i>Autres dettes</span>
+        </div>
+      </div>
+      <p class="sheet__sub" style="margin:0">Les deux barres sont à la même échelle : l'écart entre elles, c'est ton net worth.</p>
+    </div>
+
+    <div class="aside">
+      <div class="ratio">
+        <span class="label">Taux d'endettement</span>
+        <span class="num" id="ratio">—</span>
+      </div>
+      <div>
+        <p class="label" style="margin-bottom:8px">Évolution</p>
+        <svg class="spark" id="spark" viewBox="0 0 300 62" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <p class="spark__empty" id="sparkEmpty">Aucun point enregistré. Clique sur « Enregistrer un point » en bas de page pour commencer le suivi.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------------- -->
+  <section class="sheet" id="sheet-immo">
+    <div class="sheet__head">
+      <div>
+        <h2 class="sheet__title">Immobilier &amp; indivision</h2>
+        <p class="sheet__sub">La quote-part sur la valeur et celle sur le crédit sont séparées : en indivision on peut posséder 50&nbsp;% du bien et rembourser 60&nbsp;% de l'emprunt.</p>
+      </div>
+      <span class="sheet__total num" id="totalImmo">—</span>
+    </div>
+    <div class="sheet__body" id="listImmo"></div>
+    <div class="sheet__foot"><button class="btn-add" type="button" data-add="immo">+ Ajouter un bien</button></div>
+  </section>
+
+  <section class="sheet" id="sheet-place">
+    <div class="sheet__head">
+      <div>
+        <h2 class="sheet__title">Placements &amp; comptes</h2>
+        <p class="sheet__sub">Comptes courants, livrets, PEA, assurance-vie, PER, crypto. Mets 50&nbsp;% sur un compte joint, 100&nbsp;% sur ce qui est à toi seul.</p>
+      </div>
+      <span class="sheet__total num" id="totalPlace">—</span>
+    </div>
+    <div class="sheet__body" id="listPlace"></div>
+    <div class="sheet__foot"><button class="btn-add" type="button" data-add="place">+ Ajouter un compte</button></div>
+  </section>
+
+  <section class="sheet" id="sheet-autre">
+    <div class="sheet__head">
+      <div>
+        <h2 class="sheet__title">Autres actifs</h2>
+        <p class="sheet__sub">Véhicule, parts de société, prêt que quelqu'un te doit, matériel de valeur.</p>
+      </div>
+      <span class="sheet__total num" id="totalAutre">—</span>
+    </div>
+    <div class="sheet__body" id="listAutre"></div>
+    <div class="sheet__foot"><button class="btn-add" type="button" data-add="autre">+ Ajouter un actif</button></div>
+  </section>
+
+  <section class="sheet" id="sheet-dette">
+    <div class="sheet__head">
+      <div>
+        <h2 class="sheet__title">Autres dettes</h2>
+        <p class="sheet__sub">Hors crédits immobiliers, déjà comptés plus haut : prêt conso, prêt auto, découvert, impôt à payer.</p>
+      </div>
+      <span class="sheet__total num" id="totalDette">—</span>
+    </div>
+    <div class="sheet__body" id="listDette"></div>
+    <div class="sheet__foot"><button class="btn-add" type="button" data-add="dette">+ Ajouter une dette</button></div>
+  </section>
+
+  <section class="sheet">
+    <div class="sheet__head">
+      <div>
+        <h2 class="sheet__title">Historique</h2>
+        <p class="sheet__sub">Un point par relevé. Enregistre-en un chaque mois pour voir la courbe se dessiner.</p>
+      </div>
+      <button type="button" id="btnSnap">Enregistrer un point</button>
+    </div>
+    <div class="scroll-x" id="historyWrap"></div>
+  </section>
+
+  <footer class="toolbar">
+    <button type="button" id="btnExport">Exporter (JSON)</button>
+    <button type="button" id="btnImport">Importer</button>
+    <button type="button" id="btnReset">Tout effacer</button>
+    <input type="file" id="fileIn" accept="application/json,.json" hidden>
+    <p class="toolbar__note">Tout est enregistré en local dans ce navigateur, rien n'est envoyé nulle part. Exporte le JSON pour sauvegarder ou changer d'appareil.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY = 'prieure.networth.v1';
+
+  var EUR = new Intl.NumberFormat('fr-FR', {
+    style: 'currency', currency: 'EUR', maximumFractionDigits: 0
+  });
+  var EUR_SIGN = new Intl.NumberFormat('fr-FR', {
+    style: 'currency', currency: 'EUR', maximumFractionDigits: 0, signDisplay: 'exceptZero'
+  });
+
+  function money(n) { return EUR.format(Math.round(n || 0)); }
+  function moneySigned(n) { return EUR_SIGN.format(Math.round(n || 0)); }
+
+  /* Accepte « 245 000 », « 245000,50 », « 245 000 € ». */
+  function parseNum(raw) {
+    if (typeof raw !== 'string') return Number(raw) || 0;
+    var s = raw.replace(/[\s  €%]/g, '').replace(',', '.');
+    if (s === '' || s === '-') return 0;
+    var n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  }
+
+  function uid() {
+    return 'r' + Math.random().toString(36).slice(2, 9);
+  }
+
+  /* ---------------------------------------------------------------- *
+   *  État
+   * ---------------------------------------------------------------- */
+  function seed() {
+    return {
+      v: 1,
+      immo: [{
+        id: uid(), nom: 'Appartement (indivision avec Manon)',
+        valeur: 0, quotePart: 50, credit: 0, partCredit: 50, ajustement: 0
+      }],
+      place: [
+        { id: uid(), nom: 'Compte courant',   montant: 0, quotePart: 100 },
+        { id: uid(), nom: 'Livret A',         montant: 0, quotePart: 100 },
+        { id: uid(), nom: 'PEA',              montant: 0, quotePart: 100 },
+        { id: uid(), nom: 'Assurance-vie',    montant: 0, quotePart: 100 }
+      ],
+      autre: [{ id: uid(), nom: 'Voiture', montant: 0, quotePart: 100 }],
+      dette: [{ id: uid(), nom: 'Prêt conso', montant: 0, quotePart: 100 }],
+      snapshots: []
+    };
+  }
+
+  var state = load();
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return seed();
+      var d = JSON.parse(raw);
+      ['immo', 'place', 'autre', 'dette', 'snapshots'].forEach(function (k) {
+        if (!Array.isArray(d[k])) d[k] = [];
+      });
+      d.immo.forEach(function (b) { if (!b.id) b.id = uid(); });
+      return d;
+    } catch (e) {
+      return seed();
+    }
+  }
+
+  var saveTimer;
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* quota / mode privé */ }
+    }, 200);
+  }
+
+  /* ---------------------------------------------------------------- *
+   *  Calculs
+   *
+   *  Un bien en indivision se décompose en trois morceaux :
+   *    part de valeur  = valeur × quote-part
+   *    part de crédit  = capital restant dû × part de crédit
+   *    ajustement      = créance entre indivisaires (apport perso non
+   *                      compensé, ou ce que tu dois à l'indivision)
+   * ---------------------------------------------------------------- */
+  function estateParts(b) {
+    var value = parseNum(b.valeur) * parseNum(b.quotePart) / 100;
+    var loan  = parseNum(b.credit) * parseNum(b.partCredit) / 100;
+    var adj   = parseNum(b.ajustement);
+    return { value: value, loan: loan, adj: adj, net: value - loan + adj };
+  }
+
+  function simplePart(r) {
+    return parseNum(r.montant) * parseNum(r.quotePart) / 100;
+  }
+
+  function compute() {
+    var t = { immo: 0, place: 0, autre: 0, credit: 0, dette: 0, immoNet: 0 };
+
+    state.immo.forEach(function (b) {
+      var p = estateParts(b);
+      t.immo   += p.value + Math.max(p.adj, 0);
+      t.credit += p.loan  + Math.max(-p.adj, 0);
+      t.immoNet += p.net;
+    });
+    state.place.forEach(function (r) { t.place += simplePart(r); });
+    state.autre.forEach(function (r) { t.autre += simplePart(r); });
+    state.dette.forEach(function (r) { t.dette += simplePart(r); });
+
+    t.assets = t.immo + t.place + t.autre;
+    t.debts  = t.credit + t.dette;
+    t.net    = t.assets - t.debts;
+    t.ratio  = t.assets > 0 ? t.debts / t.assets * 100 : 0;
+    return t;
+  }
+
+  /* ---------------------------------------------------------------- *
+   *  Construction du DOM
+   * ---------------------------------------------------------------- */
+  /* Les listes ne sont reconstruites qu'aux changements de structure, pour ne
+     pas voler le focus pendant la frappe. Chaque ligne enregistre donc ici une
+     fonction qui rafraîchit ses propres montants sans toucher au DOM. */
+  var liveOutputs = [];
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function numInput(row, key, aria, cls) {
+    var i = el('input');
+    i.type = 'text';
+    i.className = 'num-in' + (cls ? ' ' + cls : '');
+    i.inputMode = 'decimal';
+    i.value = row[key] ? String(row[key]).replace('.', ',') : '';
+    i.placeholder = '0';
+    i.setAttribute('aria-label', aria);
+    i.addEventListener('input', function () {
+      row[key] = parseNum(i.value);
+      save();
+      render();
+    });
+    /* Reformate proprement à la sortie du champ, sans gêner la frappe. */
+    i.addEventListener('blur', function () {
+      i.value = row[key] ? String(row[key]).replace('.', ',') : '';
+    });
+    return i;
+  }
+
+  function nameInput(row, placeholder) {
+    var i = el('input');
+    i.type = 'text';
+    i.className = 'name-in';
+    i.value = row.nom || '';
+    i.placeholder = placeholder;
+    i.setAttribute('aria-label', 'Libellé');
+    i.addEventListener('input', function () { row.nom = i.value; save(); });
+    return i;
+  }
+
+  function delButton(list, row) {
+    var b = el('button', 'btn-del', '×');
+    b.type = 'button';
+    b.title = 'Supprimer cette ligne';
+    b.setAttribute('aria-label', 'Supprimer ' + (row.nom || 'la ligne'));
+    b.addEventListener('click', function () {
+      var i = list.indexOf(row);
+      if (i > -1) list.splice(i, 1);
+      save();
+      renderLists();
+      render();
+    });
+    return b;
+  }
+
+  function field(labelText, control, hint) {
+    var wrap = el('div', 'field');
+    var lab = el('label', 'field__label');
+    lab.appendChild(document.createTextNode(labelText));
+    if (hint) {
+      lab.appendChild(document.createTextNode(' '));
+      lab.appendChild(el('span', 'field__hint', hint));
+    }
+    lab.appendChild(control);
+    wrap.appendChild(lab);
+    return wrap;
+  }
+
+  function renderEstate(container) {
+    container.textContent = '';
+    if (!state.immo.length) {
+      container.appendChild(el('p', 'sheet__empty', 'Aucun bien. Ajoute ton appartement pour commencer.'));
+      return;
+    }
+    state.immo.forEach(function (b) {
+      var card = el('div', 'estate');
+
+      var top = el('div', 'estate__top');
+      top.appendChild(nameInput(b, 'Nom du bien'));
+      top.appendChild(delButton(state.immo, b));
+      card.appendChild(top);
+
+      var grid = el('div', 'estate__grid');
+      grid.appendChild(field('Valeur du bien', numInput(b, 'valeur', 'Valeur du bien')));
+      grid.appendChild(field('Ma quote-part', numInput(b, 'quotePart', 'Ma quote-part en pourcent'), '%'));
+      grid.appendChild(field('Capital restant dû', numInput(b, 'credit', 'Capital restant dû du crédit')));
+      grid.appendChild(field('Ma part du crédit', numInput(b, 'partCredit', 'Ma part du crédit en pourcent'), '%'));
+      grid.appendChild(field('Créance', numInput(b, 'ajustement', 'Créance entre indivisaires'), '±'));
+      card.appendChild(grid);
+
+      var calc = el('div', 'estate__calc');
+      var detail = el('span');
+      var out = el('b');
+      calc.appendChild(detail);
+      calc.appendChild(out);
+      card.appendChild(calc);
+
+      liveOutputs.push(function () {
+        var p = estateParts(b);
+        detail.textContent = money(p.value) + '  −  ' + money(p.loan) +
+          (p.adj ? '  ' + (p.adj > 0 ? '+' : '−') + '  ' + money(Math.abs(p.adj)) : '');
+        out.textContent = money(p.net);
+        out.classList.toggle('is-negative', p.net < 0);
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  function renderLines(container, list, opts) {
+    container.textContent = '';
+    if (!list.length) {
+      container.appendChild(el('p', 'sheet__empty', opts.empty));
+      return;
+    }
+    list.forEach(function (row) {
+      var line = el('div', 'line');
+
+      line.appendChild(nameInput(row, opts.placeholder));
+
+      var kMontant = el('span', 'line__key', 'Montant');
+      line.appendChild(kMontant);
+      line.appendChild(numInput(row, 'montant', 'Montant de ' + (row.nom || 'la ligne')));
+
+      var kPart = el('span', 'line__key', 'Quote-part %');
+      line.appendChild(kPart);
+      line.appendChild(numInput(row, 'quotePart', 'Quote-part en pourcent'));
+
+      var out = el('span', 'line__out' + (opts.debt ? ' is-debt' : ''));
+      line.appendChild(out);
+      liveOutputs.push(function () { out.textContent = money(simplePart(row)); });
+
+      line.appendChild(delButton(list, row));
+      container.appendChild(line);
+    });
+  }
+
+  /* ---------------------------------------------------------------- *
+   *  Graphiques
+   * ---------------------------------------------------------------- */
+  function renderBar(node, segments, scale) {
+    node.textContent = '';
+    segments.forEach(function (s) {
+      if (s.value <= 0) return;
+      var seg = el('div', 'bar__seg');
+      seg.dataset.k = s.key;
+      seg.style.width = (scale > 0 ? (s.value / scale * 100) : 0) + '%';
+      seg.title = s.label + ' : ' + money(s.value);
+      node.appendChild(seg);
+    });
+  }
+
+  function renderSpark(points) {
+    var svg = document.getElementById('spark');
+    var empty = document.getElementById('sparkEmpty');
+    svg.textContent = '';
+
+    if (points.length < 2) {
+      svg.style.display = 'none';
+      empty.style.display = '';
+      empty.textContent = points.length === 1
+        ? 'Un seul point pour l’instant. Le prochain relevé tracera la courbe.'
+        : 'Aucun point enregistré. Clique sur « Enregistrer un point » en bas de page pour commencer le suivi.';
+      return;
+    }
+    svg.style.display = '';
+    empty.style.display = 'none';
+
+    var W = 300, H = 62, pad = 5;
+    var vals = points.map(function (p) { return p.net; });
+    var min = Math.min.apply(null, vals);
+    var max = Math.max.apply(null, vals);
+    if (max === min) { max += 1; min -= 1; }
+
+    var xy = points.map(function (p, i) {
+      var x = points.length === 1 ? W / 2 : (i / (points.length - 1)) * W;
+      var y = pad + (1 - (p.net - min) / (max - min)) * (H - pad * 2);
+      return [x, y];
+    });
+    var line = xy.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+
+    var NS = 'http://www.w3.org/2000/svg';
+    var area = document.createElementNS(NS, 'polygon');
+    area.setAttribute('points', '0,' + H + ' ' + line + ' ' + W + ',' + H);
+    area.setAttribute('fill', 'var(--accent)');
+    area.setAttribute('opacity', '.12');
+    svg.appendChild(area);
+
+    var path = document.createElementNS(NS, 'polyline');
+    path.setAttribute('points', line);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'var(--accent)');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.appendChild(path);
+
+    var last = xy[xy.length - 1];
+    var dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('cx', last[0].toFixed(1));
+    dot.setAttribute('cy', last[1].toFixed(1));
+    dot.setAttribute('r', '3');
+    dot.setAttribute('fill', 'var(--accent)');
+    svg.appendChild(dot);
+  }
+
+  function renderHistory() {
+    var wrap = document.getElementById('historyWrap');
+    wrap.textContent = '';
+
+    if (!state.snapshots.length) {
+      wrap.appendChild(el('p', 'sheet__empty', 'Pas encore de relevé enregistré.'));
+      return;
+    }
+
+    var table = el('table', 'history');
+    var thead = el('thead');
+    var hr = el('tr');
+    ['Date', 'Actifs', 'Dettes', 'Net worth', 'Écart', ''].forEach(function (h) {
+      var th = el('th', null, h);
+      th.scope = 'col';
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    var tbody = el('tbody');
+    var ordered = state.snapshots.slice().reverse();
+    ordered.forEach(function (s, i) {
+      var prev = ordered[i + 1];
+      var tr = el('tr');
+      tr.appendChild(el('td', null, new Date(s.date).toLocaleDateString('fr-FR', {
+        day: '2-digit', month: 'short', year: 'numeric'
+      })));
+      tr.appendChild(el('td', null, money(s.assets)));
+      tr.appendChild(el('td', null, money(s.debts)));
+      tr.appendChild(el('td', null, money(s.net)));
+
+      var d = el('td');
+      if (prev) {
+        var diff = s.net - prev.net;
+        d.textContent = moneySigned(diff);
+        d.className = diff > 0 ? 'up' : (diff < 0 ? 'down' : '');
+      } else {
+        d.textContent = '—';
+      }
+      tr.appendChild(d);
+
+      var act = el('td');
+      var del = el('button', 'btn-del', '×');
+      del.type = 'button';
+      del.setAttribute('aria-label', 'Supprimer ce relevé');
+      del.addEventListener('click', function () {
+        var idx = state.snapshots.indexOf(s);
+        if (idx > -1) state.snapshots.splice(idx, 1);
+        save();
+        render();
+      });
+      act.appendChild(del);
+      tr.appendChild(act);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+  }
+
+  /* ---------------------------------------------------------------- *
+   *  Rendu global
+   * ---------------------------------------------------------------- */
+  function render() {
+    var t = compute();
+
+    liveOutputs.forEach(function (fn) { fn(); });
+
+    var netNode = document.getElementById('netTotal');
+    netNode.textContent = money(t.net);
+    netNode.classList.toggle('is-negative', t.net < 0);
+
+    document.getElementById('sumAssets').textContent = money(t.assets);
+    document.getElementById('sumDebts').textContent = money(t.debts);
+    document.getElementById('ratio').textContent =
+      t.assets > 0 ? t.ratio.toFixed(0).replace('.', ',') + ' %' : '—';
+
+    document.getElementById('totalImmo').textContent  = money(t.immoNet);
+    document.getElementById('totalPlace').textContent = money(t.place);
+    document.getElementById('totalAutre').textContent = money(t.autre);
+    document.getElementById('totalDette').textContent = money(t.dette);
+
+    var scale = Math.max(t.assets, t.debts, 1);
+    renderBar(document.getElementById('barAssets'), [
+      { key: 'immo',  value: t.immo,  label: 'Immobilier' },
+      { key: 'place', value: t.place, label: 'Placements' },
+      { key: 'autre', value: t.autre, label: 'Autres actifs' }
+    ], scale);
+    renderBar(document.getElementById('barDebts'), [
+      { key: 'credit', value: t.credit, label: 'Crédits immobiliers' },
+      { key: 'dette',  value: t.dette,  label: 'Autres dettes' }
+    ], scale);
+
+    var last = state.snapshots[state.snapshots.length - 1];
+    var delta = document.getElementById('netDelta');
+    if (last) {
+      var diff = t.net - last.net;
+      var since = new Date(last.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+      delta.textContent = '';
+      var span = el('span', diff > 0 ? 'up' : (diff < 0 ? 'down' : ''), moneySigned(diff));
+      delta.appendChild(span);
+      delta.appendChild(document.createTextNode(' depuis le ' + since));
+    } else {
+      delta.textContent = '';
+    }
+
+    renderSpark(state.snapshots);
+    renderHistory();
+  }
+
+  function renderLists() {
+    liveOutputs = [];
+    renderEstate(document.getElementById('listImmo'));
+    renderLines(document.getElementById('listPlace'), state.place, {
+      placeholder: 'Nom du compte', empty: 'Aucun compte.'
+    });
+    renderLines(document.getElementById('listAutre'), state.autre, {
+      placeholder: 'Nom de l’actif', empty: 'Aucun autre actif.'
+    });
+    renderLines(document.getElementById('listDette'), state.dette, {
+      placeholder: 'Nom de la dette', empty: 'Aucune autre dette.', debt: true
+    });
+  }
+
+  /* ---------------------------------------------------------------- *
+   *  Actions
+   * ---------------------------------------------------------------- */
+  document.querySelectorAll('[data-add]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var k = btn.dataset.add;
+      if (k === 'immo') {
+        state.immo.push({ id: uid(), nom: '', valeur: 0, quotePart: 50, credit: 0, partCredit: 50, ajustement: 0 });
+      } else {
+        state[k].push({ id: uid(), nom: '', montant: 0, quotePart: 100 });
+      }
+      save();
+      renderLists();
+      render();
+      var inputs = document.getElementById('list' + k.charAt(0).toUpperCase() + k.slice(1))
+        .querySelectorAll('input.name-in');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+  });
+
+  document.getElementById('btnSnap').addEventListener('click', function () {
+    var t = compute();
+    state.snapshots.push({
+      date: new Date().toISOString(),
+      assets: Math.round(t.assets),
+      debts: Math.round(t.debts),
+      net: Math.round(t.net)
+    });
+    save();
+    render();
+  });
+
+  document.getElementById('btnExport').addEventListener('click', function () {
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'net-worth-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
+  var fileIn = document.getElementById('fileIn');
+  document.getElementById('btnImport').addEventListener('click', function () { fileIn.click(); });
+  fileIn.addEventListener('change', function () {
+    var f = fileIn.files && fileIn.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var d = JSON.parse(String(reader.result));
+        if (!d || typeof d !== 'object') throw new Error('format');
+        ['immo', 'place', 'autre', 'dette', 'snapshots'].forEach(function (k) {
+          if (!Array.isArray(d[k])) d[k] = [];
+        });
+        state = d;
+        save();
+        renderLists();
+        render();
+      } catch (e) {
+        alert("Ce fichier n'est pas un export valide. Choisis un JSON produit par le bouton « Exporter ».");
+      }
+      fileIn.value = '';
+    };
+    reader.readAsText(f);
+  });
+
+  document.getElementById('btnReset').addEventListener('click', function () {
+    if (!confirm('Effacer toutes les lignes et tout l’historique ? Pense à exporter avant.')) return;
+    state = seed();
+    save();
+    renderLists();
+    render();
+  });
+
+  document.getElementById('stamp').textContent =
+    'Arrêté au ' + new Date().toLocaleDateString('fr-FR', {
+      day: '2-digit', month: 'long', year: 'numeric'
+    });
+
+  renderLists();
+  render();
+})();
+</script>
+</body>
+</html>
