@@ -379,6 +379,59 @@ input.code-in:hover, input.code-in:focus {
   background: var(--field);
   color: var(--ink);
 }
+/* ------------------------------------------------------------------ *
+ *  Collage de positions depuis un relevé de courtier
+ * ------------------------------------------------------------------ */
+.paste {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 16px;
+  background: var(--surface-sunk);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+}
+.paste[hidden] { display: none; }
+.paste__help {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.paste__help code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.paste textarea {
+  width: 100%;
+  min-height: 108px;
+  resize: vertical;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--field-line);
+  border-radius: 4px;
+}
+.paste textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.paste__actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.paste__status {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  flex: 1 1 200px;
+}
+.paste__status.is-error { color: var(--negative); }
+.paste__status.is-done  { color: var(--positive); font-weight: 500; }
+
 .stale-note {
   display: flex;
   gap: 8px;
@@ -683,7 +736,27 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       <span class="sheet__total num" id="totalTitres">—</span>
     </div>
     <div class="sheet__body" id="listTitres"></div>
-    <div class="sheet__foot"><button class="btn-add" type="button" data-add="titres">+ Ajouter une ligne</button></div>
+    <div class="sheet__foot">
+      <div class="paste__actions">
+        <button class="btn-add" type="button" data-add="titres">+ Ajouter une ligne</button>
+        <button type="button" id="btnPaste">Coller des positions</button>
+      </div>
+      <div class="paste" id="pastePanel" hidden>
+        <p class="paste__help">
+          Une position par ligne, champs séparés par un point-virgule :
+          <code>code ; nom ; quantité ; PRU ; cours</code>.
+          Le nom peut rester vide. Les lignes dont le code existe déjà sont mises à jour,
+          les autres sont ajoutées — rien n'est supprimé.
+        </p>
+        <textarea id="pasteText" spellcheck="false" aria-label="Positions à coller"
+          placeholder="CW8 ; Amundi MSCI World Swap ; 6 ; 628,1233 ; 699,77"></textarea>
+        <div class="paste__actions">
+          <button type="button" id="btnPasteApply">Fusionner</button>
+          <button type="button" id="btnPasteCancel">Annuler</button>
+          <p class="paste__status" id="pasteStatus"></p>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section class="sheet" id="sheet-objets">
@@ -778,8 +851,8 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     return {
       v: 1,
       immo: [{
-        id: uid(), nom: 'Appartement (indivision avec Manon)',
-        valeur: 0, quotePart: 50, credit: 0, partCredit: 50, ajustement: 0
+        id: uid(), nom: 'Appartement en indivision',
+        valeur: 0, surface: 0, quotePart: 50, credit: 0, partCredit: 50, ajustement: 0, maj: ''
       }],
       place: [
         { id: uid(), nom: 'Compte courant',   montant: 0, quotePart: 100 },
@@ -1063,6 +1136,16 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       container.appendChild(el('p', 'sheet__empty', opts.empty));
       return;
     }
+
+    /* Deux champs numériques nus côte à côte sont indevinables : sans
+       cet en-tête, on saisit le montant dans la quote-part. */
+    var head = el('div', 'line line--head');
+    head.setAttribute('aria-hidden', 'true');
+    [opts.nameCol || 'Libellé', 'Montant', 'Quote-part %', 'Valeur', ''].forEach(function (h) {
+      head.appendChild(el('span', null, h));
+    });
+    container.appendChild(head);
+
     list.forEach(function (row) {
       var line = el('div', 'line');
 
@@ -1074,7 +1157,9 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 
       var kPart = el('span', 'line__key', 'Quote-part %');
       line.appendChild(kPart);
-      line.appendChild(numInput(row, 'quotePart', 'Quote-part en pourcent'));
+      var qp = numInput(row, 'quotePart', 'Quote-part en pourcent');
+      qp.placeholder = '100 %';
+      line.appendChild(qp);
 
       var out = el('span', 'line__out' + (opts.debt ? ' is-debt' : ''));
       line.appendChild(out);
@@ -1114,7 +1199,9 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       line.appendChild(el('span', 'line__key', opts.priceCol));
       line.appendChild(numInput(row, 'cours', opts.priceCol, null, true));
       line.appendChild(el('span', 'line__key', 'Quote-part %'));
-      line.appendChild(numInput(row, 'quotePart', 'Quote-part en pourcent'));
+      var qp = numInput(row, 'quotePart', 'Quote-part en pourcent');
+      qp.placeholder = '100 %';
+      line.appendChild(qp);
 
       var out = el('span', 'line__out');
       var val = el('span');
@@ -1374,7 +1461,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     liveOutputs = [];
     renderEstate(document.getElementById('listImmo'));
     renderLines(document.getElementById('listPlace'), state.place, {
-      placeholder: 'Nom du compte', empty: 'Aucun compte.'
+      placeholder: 'Nom du compte', empty: 'Aucun compte.', nameCol: 'Compte'
     });
     renderHoldings(document.getElementById('listTitres'), state.titres, {
       placeholder: 'Nom du support', codePlaceholder: 'ISIN ou ticker',
@@ -1385,10 +1472,10 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       empty: 'Aucune pièce.', nameCol: 'Pièce', priceCol: 'Cote'
     });
     renderLines(document.getElementById('listAutre'), state.autre, {
-      placeholder: 'Nom de l’actif', empty: 'Aucun autre actif.'
+      placeholder: 'Nom de l’actif', empty: 'Aucun autre actif.', nameCol: 'Actif'
     });
     renderLines(document.getElementById('listDette'), state.dette, {
-      placeholder: 'Nom de la dette', empty: 'Aucune autre dette.', debt: true
+      placeholder: 'Nom de la dette', empty: 'Aucune autre dette.', debt: true, nameCol: 'Dette'
     });
   }
 
@@ -1413,6 +1500,118 @@ button:hover { border-color: var(--accent); color: var(--accent); }
         .querySelectorAll('input.name-in');
       if (inputs.length) inputs[inputs.length - 1].focus();
     });
+  });
+
+  /* ---------------------------------------------------------------- *
+   *  Collage de positions
+   *
+   *  Un relevé de courtier se recopie en quelques lignes plutôt qu'en
+   *  vingt champs. La fusion se fait sur le code : ce qui existe est
+   *  mis à jour, le reste est ajouté. Rien n'est jamais supprimé, pour
+   *  qu'un collage raté ne coûte pas les données déjà saisies.
+   * ---------------------------------------------------------------- */
+  function parsePositions(text) {
+    var rows = [], errors = [];
+
+    text.split(/\r?\n/).forEach(function (raw, i) {
+      var line = raw.trim();
+      if (!line || line.charAt(0) === '#') return;
+
+      var parts = (line.indexOf(';') > -1 ? line.split(';') : line.split('\t'))
+        .map(function (s) { return s.trim(); });
+
+      if (parts.length < 5) {
+        errors.push('ligne ' + (i + 1) + ' : ' + parts.length + ' champs au lieu de 5');
+        return;
+      }
+      var code = parts[0];
+      if (!code) {
+        errors.push('ligne ' + (i + 1) + ' : code manquant');
+        return;
+      }
+      rows.push({
+        code: code,
+        nom: parts[1],
+        qte: parseNum(parts[2]),
+        pru: parseNum(parts[3]),
+        cours: parseNum(parts[4])
+      });
+    });
+
+    return { rows: rows, errors: errors };
+  }
+
+  function mergePositions(rows) {
+    var updated = 0, added = 0;
+    var stamp = today();
+
+    rows.forEach(function (r) {
+      var key = r.code.toLowerCase();
+      var hit = null;
+      state.titres.forEach(function (t) {
+        if (!hit && String(t.code || '').trim().toLowerCase() === key) hit = t;
+      });
+
+      if (hit) {
+        if (r.nom) hit.nom = r.nom;
+        hit.qte = r.qte;
+        hit.pru = r.pru;
+        hit.cours = r.cours;
+        hit.maj = stamp;
+        updated++;
+      } else {
+        state.titres.push({
+          id: uid(), nom: r.nom || r.code, code: r.code,
+          qte: r.qte, pru: r.pru, cours: r.cours, quotePart: 100, maj: stamp
+        });
+        added++;
+      }
+    });
+
+    return { updated: updated, added: added };
+  }
+
+  var pastePanel  = document.getElementById('pastePanel');
+  var pasteText   = document.getElementById('pasteText');
+  var pasteStatus = document.getElementById('pasteStatus');
+
+  function setStatus(msg, kind) {
+    pasteStatus.textContent = msg;
+    pasteStatus.className = 'paste__status' + (kind ? ' is-' + kind : '');
+  }
+
+  document.getElementById('btnPaste').addEventListener('click', function () {
+    pastePanel.hidden = !pastePanel.hidden;
+    if (!pastePanel.hidden) pasteText.focus();
+  });
+
+  document.getElementById('btnPasteCancel').addEventListener('click', function () {
+    pastePanel.hidden = true;
+    pasteText.value = '';
+    setStatus('');
+  });
+
+  document.getElementById('btnPasteApply').addEventListener('click', function () {
+    var parsed = parsePositions(pasteText.value);
+
+    if (!parsed.rows.length) {
+      setStatus(parsed.errors.length
+        ? 'Rien d’exploitable — ' + parsed.errors[0] + '.'
+        : 'Colle au moins une ligne.', 'error');
+      return;
+    }
+
+    var res = mergePositions(parsed.rows);
+    save();
+    renderLists();
+    render();
+
+    var msg = [];
+    if (res.updated) msg.push(res.updated + (res.updated > 1 ? ' lignes mises à jour' : ' ligne mise à jour'));
+    if (res.added)   msg.push(res.added + (res.added > 1 ? ' ajoutées' : ' ajoutée'));
+    if (parsed.errors.length) msg.push(parsed.errors.length + ' ignorée(s) : ' + parsed.errors[0]);
+    setStatus(msg.join(', ') + '.', parsed.errors.length ? 'error' : 'done');
+    pasteText.value = '';
   });
 
   document.getElementById('btnSnap').addEventListener('click', function () {
