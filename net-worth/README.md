@@ -35,6 +35,25 @@ ma part = valeur × quote-part − capital restant dû × part du crédit + cré
 La créance se répercute du bon côté du bilan : positive elle compte en actif
 (l'indivision te doit), négative elle compte en dette.
 
+### Titres, ETF et collection
+
+Ces deux sections fonctionnent en **quantité × prix** plutôt qu'en montant
+global, parce que c'est la forme naturelle d'une ligne de portefeuille comme
+d'une pièce de collection :
+
+```
+valeur      = quantité × prix actuel × quote-part
+plus-value  = quantité × (prix actuel − prix d'achat) × quote-part
+```
+
+Le prix d'achat est facultatif : laissé à zéro, la plus-value ne s'affiche pas.
+
+**Aucune cote ne se met à jour automatiquement.** Il n'y a pas de récupération
+de cours en ligne, ni pour les ETF, ni depuis Chrono24 pour les montres : ces
+services n'exposent pas d'API publique de cotation, et la page n'émet aucune
+requête réseau. Les prix se saisissent à la main — une colonne à mettre à jour
+quand tu y penses, et tout le reste se recalcule.
+
 ### Autres postes
 
 Placements, autres actifs et dettes prennent chacun un montant et une

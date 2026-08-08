@@ -22,6 +22,12 @@
   --accent-soft:   #5a72d8;
   --accent-faint:  #9aa9e8;
   --accent-wash:   #e8ebf9;
+  /* rampe des catégories d'actif, du plus lourd au plus léger */
+  --c-immo:        #2c3fa8;
+  --c-titres:      #4459c4;
+  --c-place:       #5a72d8;
+  --c-objets:      #7a8ce4;
+  --c-autre:       #9aa9e8;
   --positive:      #2f6b4f;
   --negative:      #a3341f;
   --negative-soft: #c9694f;
@@ -47,6 +53,11 @@
     --accent-soft:   #6a7de0;
     --accent-faint:  #414d8f;
     --accent-wash:   #1d2337;
+    --c-immo:        #a5b3ff;
+    --c-titres:      #8f9ef0;
+    --c-place:       #7a89e0;
+    --c-objets:      #6674cf;
+    --c-autre:       #5261bd;
     --positive:      #6fbf8f;
     --negative:      #e0806a;
     --negative-soft: #a8543f;
@@ -68,6 +79,11 @@
   --accent-soft:   #6a7de0;
   --accent-faint:  #414d8f;
   --accent-wash:   #1d2337;
+  --c-immo:        #a5b3ff;
+  --c-titres:      #8f9ef0;
+  --c-place:       #7a89e0;
+  --c-objets:      #6674cf;
+  --c-autre:       #5261bd;
   --positive:      #6fbf8f;
   --negative:      #e0806a;
   --negative-soft: #a8543f;
@@ -199,9 +215,11 @@ body {
   min-width: 0;
   transition: width .35s cubic-bezier(.4, 0, .2, 1);
 }
-.bar__seg[data-k="immo"]   { background: var(--accent); }
-.bar__seg[data-k="place"]  { background: var(--accent-soft); }
-.bar__seg[data-k="autre"]  { background: var(--accent-faint); }
+.bar__seg[data-k="immo"]   { background: var(--c-immo); }
+.bar__seg[data-k="titres"] { background: var(--c-titres); }
+.bar__seg[data-k="place"]  { background: var(--c-place); }
+.bar__seg[data-k="objets"] { background: var(--c-objets); }
+.bar__seg[data-k="autre"]  { background: var(--c-autre); }
 .bar__seg[data-k="credit"] { background: var(--negative); }
 .bar__seg[data-k="dette"]  { background: var(--negative-soft); }
 
@@ -311,6 +329,10 @@ body {
   color: var(--ink-mute);
 }
 .line__out {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 14.5px;
@@ -319,6 +341,31 @@ body {
   padding-right: 4px;
 }
 .line__out.is-debt { color: var(--negative); }
+.line__pv {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-mute);
+}
+.line__pv.up   { color: var(--positive); }
+.line__pv.down { color: var(--negative); }
+
+/* lignes « quantité × prix » : ETF, titres, objets de collection */
+.line--hold { grid-template-columns: minmax(0, 1fr) 74px 104px 104px 72px 122px 34px; }
+.line--head {
+  padding-top: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+  background: transparent;
+}
+.line--head span {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  text-align: right;
+}
+.line--head span:first-child { text-align: left; }
 
 /* fiche bien immobilier */
 .estate {
@@ -487,7 +534,8 @@ button:hover { border-color: var(--accent); color: var(--accent); }
   }
   .line > * { grid-column: 1 / -1; }
   .line__key { display: block; margin-top: 6px; }
-  .line__out { text-align: left; font-size: 16px; }
+  .line__out { align-items: flex-start; text-align: left; font-size: 16px; }
+  .line--head { display: none; }   /* les intitulés passent en clés inline */
   /* le libellé et sa croix partagent la première rangée */
   .line > input.name-in { grid-column: 1; grid-row: 1; }
   .line > .btn-del { grid-column: 2; grid-row: 1; justify-self: end; }
@@ -525,9 +573,11 @@ button:hover { border-color: var(--accent); color: var(--accent); }
         </div>
         <div class="bar" id="barAssets" role="img" aria-label="Répartition des actifs"></div>
         <div class="legend">
-          <span><i style="background:var(--accent)"></i>Immobilier</span>
-          <span><i style="background:var(--accent-soft)"></i>Placements</span>
-          <span><i style="background:var(--accent-faint)"></i>Autres actifs</span>
+          <span><i style="background:var(--c-immo)"></i>Immobilier</span>
+          <span><i style="background:var(--c-titres)"></i>Titres &amp; ETF</span>
+          <span><i style="background:var(--c-place)"></i>Placements</span>
+          <span><i style="background:var(--c-objets)"></i>Collection</span>
+          <span><i style="background:var(--c-autre)"></i>Autres actifs</span>
         </div>
       </div>
       <div class="scale__row">
@@ -580,6 +630,30 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     </div>
     <div class="sheet__body" id="listPlace"></div>
     <div class="sheet__foot"><button class="btn-add" type="button" data-add="place">+ Ajouter un compte</button></div>
+  </section>
+
+  <section class="sheet" id="sheet-titres">
+    <div class="sheet__head">
+      <div>
+        <h2 class="sheet__title">Titres &amp; ETF</h2>
+        <p class="sheet__sub">Une ligne par ligne de portefeuille : nombre de parts × cours. Le prix de revient unitaire est facultatif — s'il est renseigné, la plus-value latente s'affiche.</p>
+      </div>
+      <span class="sheet__total num" id="totalTitres">—</span>
+    </div>
+    <div class="sheet__body" id="listTitres"></div>
+    <div class="sheet__foot"><button class="btn-add" type="button" data-add="titres">+ Ajouter une ligne</button></div>
+  </section>
+
+  <section class="sheet" id="sheet-objets">
+    <div class="sheet__head">
+      <div>
+        <h2 class="sheet__title">Collection</h2>
+        <p class="sheet__sub">Montres, vélos, instruments. Aucune cote ne se met à jour toute seule : relève le prix sur Chrono24 et colle-le dans « cote ». Le prix d'achat te donne la plus-value.</p>
+      </div>
+      <span class="sheet__total num" id="totalObjets">—</span>
+    </div>
+    <div class="sheet__body" id="listObjets"></div>
+    <div class="sheet__foot"><button class="btn-add" type="button" data-add="objets">+ Ajouter une pièce</button></div>
   </section>
 
   <section class="sheet" id="sheet-autre">
@@ -668,8 +742,14 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       place: [
         { id: uid(), nom: 'Compte courant',   montant: 0, quotePart: 100 },
         { id: uid(), nom: 'Livret A',         montant: 0, quotePart: 100 },
-        { id: uid(), nom: 'PEA',              montant: 0, quotePart: 100 },
         { id: uid(), nom: 'Assurance-vie',    montant: 0, quotePart: 100 }
+      ],
+      titres: [
+        { id: uid(), nom: 'ETF World (PEA)', qte: 0, pru: 0, cours: 0, quotePart: 100 },
+        { id: uid(), nom: 'ETF S&P 500 (CTO)', qte: 0, pru: 0, cours: 0, quotePart: 100 }
+      ],
+      objets: [
+        { id: uid(), nom: 'Montre — réf.', qte: 1, pru: 0, cours: 0, quotePart: 100 }
       ],
       autre: [{ id: uid(), nom: 'Voiture', montant: 0, quotePart: 100 }],
       dette: [{ id: uid(), nom: 'Prêt conso', montant: 0, quotePart: 100 }],
@@ -684,7 +764,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       var raw = localStorage.getItem(KEY);
       if (!raw) return seed();
       var d = JSON.parse(raw);
-      ['immo', 'place', 'autre', 'dette', 'snapshots'].forEach(function (k) {
+      ['immo', 'place', 'titres', 'objets', 'autre', 'dette', 'snapshots'].forEach(function (k) {
         if (!Array.isArray(d[k])) d[k] = [];
       });
       d.immo.forEach(function (b) { if (!b.id) b.id = uid(); });
@@ -722,8 +802,19 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     return parseNum(r.montant) * parseNum(r.quotePart) / 100;
   }
 
+  /* Ligne « quantité × prix » : parts d'ETF comme pièces de collection.
+     Le prix de revient est facultatif ; renseigné, il donne la plus-value. */
+  function holdingPart(r) {
+    return parseNum(r.qte) * parseNum(r.cours) * parseNum(r.quotePart) / 100;
+  }
+  function holdingGain(r) {
+    if (!parseNum(r.pru)) return null;
+    return parseNum(r.qte) * (parseNum(r.cours) - parseNum(r.pru)) * parseNum(r.quotePart) / 100;
+  }
+
   function compute() {
-    var t = { immo: 0, place: 0, autre: 0, credit: 0, dette: 0, immoNet: 0 };
+    var t = { immo: 0, place: 0, titres: 0, objets: 0, autre: 0, credit: 0, dette: 0,
+              immoNet: 0, gainTitres: 0, gainObjets: 0 };
 
     state.immo.forEach(function (b) {
       var p = estateParts(b);
@@ -734,8 +825,16 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     state.place.forEach(function (r) { t.place += simplePart(r); });
     state.autre.forEach(function (r) { t.autre += simplePart(r); });
     state.dette.forEach(function (r) { t.dette += simplePart(r); });
+    state.titres.forEach(function (r) {
+      t.titres += holdingPart(r);
+      t.gainTitres += holdingGain(r) || 0;
+    });
+    state.objets.forEach(function (r) {
+      t.objets += holdingPart(r);
+      t.gainObjets += holdingGain(r) || 0;
+    });
 
-    t.assets = t.immo + t.place + t.autre;
+    t.assets = t.immo + t.place + t.titres + t.objets + t.autre;
     t.debts  = t.credit + t.dette;
     t.net    = t.assets - t.debts;
     t.ratio  = t.assets > 0 ? t.debts / t.assets * 100 : 0;
@@ -885,6 +984,52 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     });
   }
 
+  function renderHoldings(container, list, opts) {
+    container.textContent = '';
+    if (!list.length) {
+      container.appendChild(el('p', 'sheet__empty', opts.empty));
+      return;
+    }
+
+    var head = el('div', 'line line--hold line--head');
+    head.setAttribute('aria-hidden', 'true');
+    [opts.nameCol, 'Qté', 'Prix d’achat', opts.priceCol, 'Part %', 'Valeur', ''].forEach(function (h) {
+      head.appendChild(el('span', null, h));
+    });
+    container.appendChild(head);
+
+    list.forEach(function (row) {
+      var line = el('div', 'line line--hold');
+      line.appendChild(nameInput(row, opts.placeholder));
+
+      line.appendChild(el('span', 'line__key', 'Quantité'));
+      line.appendChild(numInput(row, 'qte', 'Quantité'));
+      line.appendChild(el('span', 'line__key', 'Prix d’achat unitaire'));
+      line.appendChild(numInput(row, 'pru', 'Prix d’achat unitaire'));
+      line.appendChild(el('span', 'line__key', opts.priceCol));
+      line.appendChild(numInput(row, 'cours', opts.priceCol));
+      line.appendChild(el('span', 'line__key', 'Quote-part %'));
+      line.appendChild(numInput(row, 'quotePart', 'Quote-part en pourcent'));
+
+      var out = el('span', 'line__out');
+      var val = el('span');
+      var pv = el('span', 'line__pv');
+      out.appendChild(val);
+      out.appendChild(pv);
+      line.appendChild(out);
+
+      liveOutputs.push(function () {
+        val.textContent = money(holdingPart(row));
+        var g = holdingGain(row);
+        pv.textContent = g === null ? '' : moneySigned(g);
+        pv.className = 'line__pv' + (g === null || Math.round(g) === 0 ? '' : (g > 0 ? ' up' : ' down'));
+      });
+
+      line.appendChild(delButton(list, row));
+      container.appendChild(line);
+    });
+  }
+
   /* ---------------------------------------------------------------- *
    *  Graphiques
    * ---------------------------------------------------------------- */
@@ -1019,6 +1164,17 @@ button:hover { border-color: var(--accent); color: var(--accent); }
   /* ---------------------------------------------------------------- *
    *  Rendu global
    * ---------------------------------------------------------------- */
+  /* Total d'une section, suivi de la plus-value latente quand elle existe. */
+  function totalWithGain(id, total, gain) {
+    var node = document.getElementById(id);
+    node.textContent = money(total);
+    if (Math.round(gain) !== 0) {
+      var g = el('span', 'line__pv ' + (gain > 0 ? 'up' : 'down'), '  ' + moneySigned(gain));
+      g.style.fontSize = '12.5px';
+      node.appendChild(g);
+    }
+  }
+
   function render() {
     var t = compute();
 
@@ -1037,12 +1193,16 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     document.getElementById('totalPlace').textContent = money(t.place);
     document.getElementById('totalAutre').textContent = money(t.autre);
     document.getElementById('totalDette').textContent = money(t.dette);
+    totalWithGain('totalTitres', t.titres, t.gainTitres);
+    totalWithGain('totalObjets', t.objets, t.gainObjets);
 
     var scale = Math.max(t.assets, t.debts, 1);
     renderBar(document.getElementById('barAssets'), [
-      { key: 'immo',  value: t.immo,  label: 'Immobilier' },
-      { key: 'place', value: t.place, label: 'Placements' },
-      { key: 'autre', value: t.autre, label: 'Autres actifs' }
+      { key: 'immo',   value: t.immo,   label: 'Immobilier' },
+      { key: 'titres', value: t.titres, label: 'Titres & ETF' },
+      { key: 'place',  value: t.place,  label: 'Placements' },
+      { key: 'objets', value: t.objets, label: 'Collection' },
+      { key: 'autre',  value: t.autre,  label: 'Autres actifs' }
     ], scale);
     renderBar(document.getElementById('barDebts'), [
       { key: 'credit', value: t.credit, label: 'Crédits immobiliers' },
@@ -1072,6 +1232,14 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     renderLines(document.getElementById('listPlace'), state.place, {
       placeholder: 'Nom du compte', empty: 'Aucun compte.'
     });
+    renderHoldings(document.getElementById('listTitres'), state.titres, {
+      placeholder: 'Nom du support', empty: 'Aucune ligne de portefeuille.',
+      nameCol: 'Support', priceCol: 'Cours', priceLabel: 'Cours'
+    });
+    renderHoldings(document.getElementById('listObjets'), state.objets, {
+      placeholder: 'Pièce, référence', empty: 'Aucune pièce.',
+      nameCol: 'Pièce', priceCol: 'Cote', priceLabel: 'Cote'
+    });
     renderLines(document.getElementById('listAutre'), state.autre, {
       placeholder: 'Nom de l’actif', empty: 'Aucun autre actif.'
     });
@@ -1088,6 +1256,8 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       var k = btn.dataset.add;
       if (k === 'immo') {
         state.immo.push({ id: uid(), nom: '', valeur: 0, quotePart: 50, credit: 0, partCredit: 50, ajustement: 0 });
+      } else if (k === 'titres' || k === 'objets') {
+        state[k].push({ id: uid(), nom: '', qte: k === 'objets' ? 1 : 0, pru: 0, cours: 0, quotePart: 100 });
       } else {
         state[k].push({ id: uid(), nom: '', montant: 0, quotePart: 100 });
       }
@@ -1134,7 +1304,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       try {
         var d = JSON.parse(String(reader.result));
         if (!d || typeof d !== 'object') throw new Error('format');
-        ['immo', 'place', 'autre', 'dette', 'snapshots'].forEach(function (k) {
+        ['immo', 'place', 'titres', 'objets', 'autre', 'dette', 'snapshots'].forEach(function (k) {
           if (!Array.isArray(d[k])) d[k] = [];
         });
         state = d;
