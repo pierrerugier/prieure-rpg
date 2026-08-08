@@ -48,11 +48,28 @@ plus-value  = quantité × (prix actuel − prix d'achat) × quote-part
 
 Le prix d'achat est facultatif : laissé à zéro, la plus-value ne s'affiche pas.
 
-**Aucune cote ne se met à jour automatiquement.** Il n'y a pas de récupération
-de cours en ligne, ni pour les ETF, ni depuis Chrono24 pour les montres : ces
-services n'exposent pas d'API publique de cotation, et la page n'émet aucune
-requête réseau. Les prix se saisissent à la main — une colonne à mettre à jour
-quand tu y penses, et tout le reste se recalcule.
+Chaque ligne porte un **code** libre : ISIN ou ticker pour un support, référence
+de boîtier pour une montre.
+
+### Aucun prix ne se récupère automatiquement
+
+Il n'existe pas de mise à jour en ligne des cours, et il ne peut pas en exister
+ici : la page n'émet aucune requête réseau, et une page publiée sur claude.ai
+n'a pas la capacité d'en émettre. Chrono24 comme MeilleursAgents n'exposent de
+toute façon aucune API publique de cotation.
+
+Le garde-fou est donc ailleurs — **rendre la péremption visible** :
+
+- modifier un prix le date automatiquement, sans rien à saisir ;
+- chaque ligne affiche depuis quand son prix n'a pas bougé ;
+- au-delà de 30 jours le repère passe en ambre, et la synthèse annonce combien
+  de prix sont à rafraîchir en nommant le plus ancien.
+
+Pour l'immobilier, la surface est facultative ; renseignée, elle affiche le prix
+au m² déduit. C'est le chiffre qui se compare directement à une estimation
+relevée ailleurs — et pour de vrais prix de vente, **DVF** (l'open data de
+l'État, qui recense les transactions enregistrées chez le notaire) vaut mieux
+qu'une estimation algorithmique.
 
 ### Autres postes
 

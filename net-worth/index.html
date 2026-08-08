@@ -28,6 +28,7 @@
   --c-place:       #5a72d8;
   --c-objets:      #7a8ce4;
   --c-autre:       #9aa9e8;
+  --warn:          #8a5a12;
   --positive:      #2f6b4f;
   --negative:      #a3341f;
   --negative-soft: #c9694f;
@@ -58,6 +59,7 @@
     --c-place:       #7a89e0;
     --c-objets:      #6674cf;
     --c-autre:       #5261bd;
+    --warn:          #e0b060;
     --positive:      #6fbf8f;
     --negative:      #e0806a;
     --negative-soft: #a8543f;
@@ -84,6 +86,7 @@
   --c-place:       #7a89e0;
   --c-objets:      #6674cf;
   --c-autre:       #5261bd;
+  --warn:          #e0b060;
   --positive:      #6fbf8f;
   --negative:      #e0806a;
   --negative-soft: #a8543f;
@@ -349,6 +352,43 @@ body {
 .line__pv.up   { color: var(--positive); }
 .line__pv.down { color: var(--negative); }
 
+/* date du dernier relevé de prix, saisie automatiquement */
+.line__age {
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--sans);
+  color: var(--ink-mute);
+}
+.line__age.is-stale { color: var(--warn); font-weight: 600; }
+
+/* identifiant du support : ISIN, ticker, référence */
+.cell-name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+input.code-in {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 3px 4px;
+  color: var(--ink-mute);
+  background: transparent;
+  border-color: transparent;
+}
+input.code-in::placeholder { text-transform: none; letter-spacing: 0; }
+input.code-in:hover, input.code-in:focus {
+  border-color: var(--field-line);
+  background: var(--field);
+  color: var(--ink);
+}
+.stale-note {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12.5px;
+  color: var(--warn);
+  line-height: 1.4;
+}
+.stale-note strong { font-family: var(--mono); font-weight: 600; }
+
 /* lignes « quantité × prix » : ETF, titres, objets de collection */
 .line--hold { grid-template-columns: minmax(0, 1fr) 74px 104px 104px 72px 122px 34px; }
 .line--head {
@@ -419,9 +459,10 @@ body {
   font-size: 15px;
   font-weight: 600;
   color: var(--ink);
-  margin-left: auto;
   white-space: nowrap;
 }
+/* pousse la date et le total à droite, en un seul groupe */
+.estate__calc .is-pushed { margin-left: auto; }
 .estate__calc b.is-negative { color: var(--negative); }
 
 /* --- contrôles --- */
@@ -599,6 +640,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
         <span class="label">Taux d'endettement</span>
         <span class="num" id="ratio">—</span>
       </div>
+      <div class="stale-note" id="staleNote" hidden></div>
       <div>
         <p class="label" style="margin-bottom:8px">Évolution</p>
         <svg class="spark" id="spark" viewBox="0 0 300 62" preserveAspectRatio="none" aria-hidden="true"></svg>
@@ -745,11 +787,11 @@ button:hover { border-color: var(--accent); color: var(--accent); }
         { id: uid(), nom: 'Assurance-vie',    montant: 0, quotePart: 100 }
       ],
       titres: [
-        { id: uid(), nom: 'ETF World (PEA)', qte: 0, pru: 0, cours: 0, quotePart: 100 },
-        { id: uid(), nom: 'ETF S&P 500 (CTO)', qte: 0, pru: 0, cours: 0, quotePart: 100 }
+        { id: uid(), nom: 'ETF World', code: '', qte: 0, pru: 0, cours: 0, quotePart: 100, maj: '' },
+        { id: uid(), nom: 'ETF S&P 500', code: '', qte: 0, pru: 0, cours: 0, quotePart: 100, maj: '' }
       ],
       objets: [
-        { id: uid(), nom: 'Montre — réf.', qte: 1, pru: 0, cours: 0, quotePart: 100 }
+        { id: uid(), nom: 'Montre', code: '', qte: 1, pru: 0, cours: 0, quotePart: 100, maj: '' }
       ],
       autre: [{ id: uid(), nom: 'Voiture', montant: 0, quotePart: 100 }],
       dette: [{ id: uid(), nom: 'Prêt conso', montant: 0, quotePart: 100 }],
@@ -856,7 +898,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     return n;
   }
 
-  function numInput(row, key, aria, cls) {
+  function numInput(row, key, aria, cls, stamps) {
     var i = el('input');
     i.type = 'text';
     i.className = 'num-in' + (cls ? ' ' + cls : '');
@@ -865,7 +907,10 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     i.placeholder = '0';
     i.setAttribute('aria-label', aria);
     i.addEventListener('input', function () {
-      row[key] = parseNum(i.value);
+      var next = parseNum(i.value);
+      /* Modifier un prix, c'est le relever : on date sans rien demander. */
+      if (stamps && next !== parseNum(row[key])) row.maj = today();
+      row[key] = next;
       save();
       render();
     });
@@ -873,6 +918,52 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     i.addEventListener('blur', function () {
       i.value = row[key] ? String(row[key]).replace('.', ',') : '';
     });
+    return i;
+  }
+
+  /* ---------------------------------------------------------------- *
+   *  Fraîcheur des cotes
+   *
+   *  Aucun prix ne se récupère tout seul : ni cours d'ETF, ni cote de
+   *  montre, ni estimation immobilière. La page ne fait aucune requête
+   *  réseau. Le seul garde-fou honnête est donc de dater chaque prix
+   *  saisi et de signaler ceux qui ont vieilli.
+   * ---------------------------------------------------------------- */
+  var STALE_DAYS = 30;
+
+  function today() { return new Date().toISOString().slice(0, 10); }
+
+  function ageInDays(iso) {
+    if (!iso) return null;
+    var then = new Date(iso + 'T12:00:00');
+    if (isNaN(then)) return null;
+    return Math.floor((Date.now() - then.getTime()) / 86400000);
+  }
+
+  function ageLabel(iso) {
+    var d = ageInDays(iso);
+    if (d === null) return 'jamais relevé';
+    if (d <= 0) return 'relevé aujourd’hui';
+    if (d === 1) return 'relevé hier';
+    if (d < 31) return 'relevé il y a ' + d + ' j';
+    if (d < 365) return 'relevé il y a ' + Math.round(d / 30) + ' mois';
+    return 'relevé il y a plus d’un an';
+  }
+
+  function isStale(iso) {
+    var d = ageInDays(iso);
+    return d === null || d > STALE_DAYS;
+  }
+
+  /* Champ libre : ISIN, ticker, référence de boîtier. */
+  function codeInput(row, placeholder) {
+    var i = el('input');
+    i.type = 'text';
+    i.className = 'code-in';
+    i.value = row.code || '';
+    i.placeholder = placeholder;
+    i.setAttribute('aria-label', 'Code ou référence');
+    i.addEventListener('input', function () { row.code = i.value; save(); });
     return i;
   }
 
@@ -930,7 +1021,8 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       card.appendChild(top);
 
       var grid = el('div', 'estate__grid');
-      grid.appendChild(field('Valeur du bien', numInput(b, 'valeur', 'Valeur du bien')));
+      grid.appendChild(field('Valeur du bien', numInput(b, 'valeur', 'Valeur du bien', null, true)));
+      grid.appendChild(field('Surface', numInput(b, 'surface', 'Surface en mètres carrés'), 'm²'));
       grid.appendChild(field('Ma quote-part', numInput(b, 'quotePart', 'Ma quote-part en pourcent'), '%'));
       grid.appendChild(field('Capital restant dû', numInput(b, 'credit', 'Capital restant dû du crédit')));
       grid.appendChild(field('Ma part du crédit', numInput(b, 'partCredit', 'Ma part du crédit en pourcent'), '%'));
@@ -939,17 +1031,26 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 
       var calc = el('div', 'estate__calc');
       var detail = el('span');
+      var stamp = el('span', 'line__age is-pushed');
       var out = el('b');
       calc.appendChild(detail);
+      calc.appendChild(stamp);
       calc.appendChild(out);
       card.appendChild(calc);
 
       liveOutputs.push(function () {
         var p = estateParts(b);
+        var m2 = parseNum(b.surface);
         detail.textContent = money(p.value) + '  −  ' + money(p.loan) +
-          (p.adj ? '  ' + (p.adj > 0 ? '+' : '−') + '  ' + money(Math.abs(p.adj)) : '');
+          (p.adj ? '  ' + (p.adj > 0 ? '+' : '−') + '  ' + money(Math.abs(p.adj)) : '') +
+          (m2 > 0 && parseNum(b.valeur) > 0
+            ? '   ·   ' + money(parseNum(b.valeur) / m2) + '/m²' : '');
         out.textContent = money(p.net);
         out.classList.toggle('is-negative', p.net < 0);
+
+        var hasValue = parseNum(b.valeur) !== 0;
+        stamp.textContent = hasValue ? ageLabel(b.maj) : '';
+        stamp.className = 'line__age is-pushed' + (hasValue && isStale(b.maj) ? ' is-stale' : '');
       });
 
       container.appendChild(card);
@@ -1000,22 +1101,28 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 
     list.forEach(function (row) {
       var line = el('div', 'line line--hold');
-      line.appendChild(nameInput(row, opts.placeholder));
+
+      var cell = el('div', 'cell-name');
+      cell.appendChild(nameInput(row, opts.placeholder));
+      cell.appendChild(codeInput(row, opts.codePlaceholder));
+      line.appendChild(cell);
 
       line.appendChild(el('span', 'line__key', 'Quantité'));
       line.appendChild(numInput(row, 'qte', 'Quantité'));
       line.appendChild(el('span', 'line__key', 'Prix d’achat unitaire'));
       line.appendChild(numInput(row, 'pru', 'Prix d’achat unitaire'));
       line.appendChild(el('span', 'line__key', opts.priceCol));
-      line.appendChild(numInput(row, 'cours', opts.priceCol));
+      line.appendChild(numInput(row, 'cours', opts.priceCol, null, true));
       line.appendChild(el('span', 'line__key', 'Quote-part %'));
       line.appendChild(numInput(row, 'quotePart', 'Quote-part en pourcent'));
 
       var out = el('span', 'line__out');
       var val = el('span');
       var pv = el('span', 'line__pv');
+      var age = el('span', 'line__age');
       out.appendChild(val);
       out.appendChild(pv);
+      out.appendChild(age);
       line.appendChild(out);
 
       liveOutputs.push(function () {
@@ -1023,6 +1130,9 @@ button:hover { border-color: var(--accent); color: var(--accent); }
         var g = holdingGain(row);
         pv.textContent = g === null ? '' : moneySigned(g);
         pv.className = 'line__pv' + (g === null || Math.round(g) === 0 ? '' : (g > 0 ? ' up' : ' down'));
+        var hasPrice = parseNum(row.cours) !== 0;
+        age.textContent = hasPrice ? ageLabel(row.maj) : '';
+        age.className = 'line__age' + (hasPrice && isStale(row.maj) ? ' is-stale' : '');
       });
 
       line.appendChild(delButton(list, row));
@@ -1164,6 +1274,39 @@ button:hover { border-color: var(--accent); color: var(--accent); }
   /* ---------------------------------------------------------------- *
    *  Rendu global
    * ---------------------------------------------------------------- */
+  /* Rien ne se met à jour tout seul : autant dire clairement ce qui a vieilli. */
+  function renderStaleNote() {
+    var node = document.getElementById('staleNote');
+    var priced = [];
+
+    state.titres.concat(state.objets).forEach(function (r) {
+      if (parseNum(r.cours) !== 0) priced.push({ nom: r.nom || 'sans nom', maj: r.maj });
+    });
+    state.immo.forEach(function (b) {
+      if (parseNum(b.valeur) !== 0) priced.push({ nom: b.nom || 'bien sans nom', maj: b.maj });
+    });
+
+    var stale = priced.filter(function (r) { return isStale(r.maj); });
+    if (!stale.length) {
+      node.hidden = true;
+      node.textContent = '';
+      return;
+    }
+
+    /* Le plus ancien d'abord ; une date absente compte comme la plus vieille. */
+    stale.sort(function (a, b) {
+      var da = ageInDays(a.maj), db = ageInDays(b.maj);
+      return (db === null ? Infinity : db) - (da === null ? Infinity : da);
+    });
+
+    node.hidden = false;
+    node.textContent = '';
+    node.appendChild(el('strong', null, String(stale.length)));
+    node.appendChild(el('span', null,
+      ' prix à rafraîchir — le plus ancien : ' +
+      stale[0].nom + ' (' + ageLabel(stale[0].maj) + ').'));
+  }
+
   /* Total d'une section, suivi de la plus-value latente quand elle existe. */
   function totalWithGain(id, total, gain) {
     var node = document.getElementById(id);
@@ -1222,6 +1365,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       delta.textContent = '';
     }
 
+    renderStaleNote();
     renderSpark(state.snapshots);
     renderHistory();
   }
@@ -1233,12 +1377,12 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       placeholder: 'Nom du compte', empty: 'Aucun compte.'
     });
     renderHoldings(document.getElementById('listTitres'), state.titres, {
-      placeholder: 'Nom du support', empty: 'Aucune ligne de portefeuille.',
-      nameCol: 'Support', priceCol: 'Cours', priceLabel: 'Cours'
+      placeholder: 'Nom du support', codePlaceholder: 'ISIN ou ticker',
+      empty: 'Aucune ligne de portefeuille.', nameCol: 'Support', priceCol: 'Cours'
     });
     renderHoldings(document.getElementById('listObjets'), state.objets, {
-      placeholder: 'Pièce, référence', empty: 'Aucune pièce.',
-      nameCol: 'Pièce', priceCol: 'Cote', priceLabel: 'Cote'
+      placeholder: 'Nom de la pièce', codePlaceholder: 'Référence',
+      empty: 'Aucune pièce.', nameCol: 'Pièce', priceCol: 'Cote'
     });
     renderLines(document.getElementById('listAutre'), state.autre, {
       placeholder: 'Nom de l’actif', empty: 'Aucun autre actif.'
@@ -1257,7 +1401,8 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       if (k === 'immo') {
         state.immo.push({ id: uid(), nom: '', valeur: 0, quotePart: 50, credit: 0, partCredit: 50, ajustement: 0 });
       } else if (k === 'titres' || k === 'objets') {
-        state[k].push({ id: uid(), nom: '', qte: k === 'objets' ? 1 : 0, pru: 0, cours: 0, quotePart: 100 });
+        state[k].push({ id: uid(), nom: '', code: '', qte: k === 'objets' ? 1 : 0,
+                        pru: 0, cours: 0, quotePart: 100, maj: '' });
       } else {
         state[k].push({ id: uid(), nom: '', montant: 0, quotePart: 100 });
       }
